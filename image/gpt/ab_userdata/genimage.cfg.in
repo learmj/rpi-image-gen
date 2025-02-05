@@ -7,6 +7,7 @@ image <IMAGE_DIR>/<IMAGE_NAME>.<IMAGE_SUFFIX>.sparse {
 image <IMAGE_DIR>/<IMAGE_NAME>.<IMAGE_SUFFIX> {
    hdimage {
       partition-table-type = "gpt"
+      gpt-location = 8M
    }
 
    partition config {
