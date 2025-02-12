@@ -135,7 +135,7 @@ Other sub-component directories exist for particular purposes and the path to so
 
 == Options
 
-The intention is for rpi-image-gen to have parity with many of the options supported by pi-gen, either as a 1-1 mapping or by functional equivalence. The following options are supported and can be specified in the Options file or in the appropriate section of the Config file. Please note there is currently no support for reading them from the environment.
+The intention is for rpi-image-gen to have parity with many of the options supported by pi-gen, either as a 1-1 mapping or by functional equivalence. The following options are supported and can be specified in the Options file or in the appropriate section of the Config file. Unless otherwise stated, there is no support for reading them from the environment.
 
  * `DEVICE_CLASS` (Default: `pi5`)
 
@@ -248,6 +248,23 @@ The intention is for rpi-image-gen to have parity with many of the options suppo
  * `IMAGE_OPTIONS` (Default: options)
 
    The name of the file in the image layout directory that contains configuration variables specific to that layout.
+
+ * `SYSTEM_ENABLE_SSH` (Default: n)
+
+   If set to y, automatically include net-misc/openssh-server in the profile to install and enable an SSH daemon.
+   Exercise caution if FIRST_USER_PASS is enabled. Usage of SSH_PUBKEY_FIRST_USER and SSH_PUBKEY_ONLY is recommended.
+
+ * `SSH_PUBKEY_FIRST_USER` (Default: unset)
+
+   The following apply if net-misc/openssh-server is included in the profile:
+   If unset, <FIRST_USER_NAME>/.ssh/authorized_keys will be created empty.
+   If set and contains a valid file path, the contents of the file will be used to populate <FIRST_USER_NAME>/.ssh/authorized_keys.
+   If set and not a valid file path, the contents of the variable will be used to populate <FIRST_USER_NAME>/.ssh/authorized_keys.
+
+ * `SSH_PUBKEY_ONLY` (Default: n)
+
+   The following apply if net-misc/openssh-server is included in the profile:
+   If set to y, SSH password authentication will be disabled and public key authentication will be enabled.
 
 == Execution Flow
 

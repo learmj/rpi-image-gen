@@ -1,0 +1,25 @@
+---
+name: openssh server
+mmdebstrap:
+  packages:
+    - openssh-server
+  customize-hooks:
+    - mkdir -p $1/home/${IGconf_first_user_name}/.ssh
+    - |-
+      if [ -z ${IGconf_ssh_pubkey_first_user+x} ]; then
+         touch $1/home/${IGconf_first_user_name}/.ssh/authorized_keys
+      elif [ -f "$IGconf_ssh_pubkey_first_user" ] ; then
+         cat $IGconf_ssh_pubkey_first_user > $1/home/${IGconf_first_user_name}/.ssh/authorized_keys
+      else
+         echo "$IGconf_ssh_pubkey_first_user" > $1/home/${IGconf_first_user_name}/.ssh/authorized_keys
+      fi
+    - |-
+      if igconf is_y ssh_pubkey_only ; then
+         mkdir -p $1/etc/ssh/sshd_config.d
+         cat <<- 'EOCHROOT' > $1/etc/ssh/sshd_config.d/01local.conf
+      ChallengeResponseAuthentication no
+      PasswordAuthentication no
+      UsePAM no
+      PubkeyAuthentication yes
+      EOCHROOT
+      fi

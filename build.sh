@@ -138,6 +138,12 @@ IGconf_sbom_output_format="spdx-json"
 IGconf_device_options="options"
 IGconf_image_options="options"
 
+# FIXME move after variable rework
+: "${IGconf_system_enable_ssh:=n}"
+[[ -z ${IGconf_ssh_pubkey_first_user+x} ]] && unset IGconf_ssh_pubkey_first_user
+: "${IGconf_ssh_pubkey_only:=n}"
+
+
 
 # Provide external directory paths
 [[ -d $EXT_DIR ]] && IGconf_ext_dir="$EXT_DIR"

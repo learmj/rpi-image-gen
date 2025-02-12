@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -u
+
+# See meta/net-misc/openssh-server
+if igconf is_y system_enable_ssh ; then
+   chroot $1 bash -- <<- EOCHROOT
+   chown -R ${IGconf_first_user_name}:${IGconf_first_user_name} /home/${IGconf_first_user_name}/.ssh
+   chmod 0700 /home/${IGconf_first_user_name}/.ssh
+   chmod 0600 /home/${IGconf_first_user_name}/.ssh/authorized_keys
+EOCHROOT
+   $BDEBSTRAP_HOOKS/enable-units "$1" ssh
+fi
