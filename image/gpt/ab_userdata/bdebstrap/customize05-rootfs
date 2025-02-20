@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -u
+
+# Install slot rules
+install -m 0644 -D ../device/slot.rules $1/etc/udev/rules.d/90-rpi-slot.rules
+
+# Install slot helper
+mkslot-helper < ../device/slot.pmap > $1/usr/bin/rpi-slot || exit 1
+chmod +x $1/usr/bin/rpi-slot

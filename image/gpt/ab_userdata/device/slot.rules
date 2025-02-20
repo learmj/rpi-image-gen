@@ -1,5 +1,2 @@
-IMPORT{cmdline}="root"
-ENV{ID_FS_USAGE}=="filesystem|other|crypto", ENV{ID_FS_LABEL_ENC}=="ROOTB", ENV{root}=="/dev/disk/by-label/ROOTA", SYMLINK+="disk/by-slot/other/ROOT"
-ENV{ID_FS_USAGE}=="filesystem|other|crypto", ENV{ID_FS_LABEL_ENC}=="BOOTB", ENV{root}=="/dev/disk/by-label/ROOTA", SYMLINK+="disk/by-slot/other/BOOT"
-ENV{ID_FS_USAGE}=="filesystem|other|crypto", ENV{ID_FS_LABEL_ENC}=="ROOTA", ENV{root}=="/dev/disk/by-label/ROOTB", SYMLINK+="disk/by-slot/other/ROOT"
-ENV{ID_FS_USAGE}=="filesystem|other|crypto", ENV{ID_FS_LABEL_ENC}=="BOOTA", ENV{root}=="/dev/disk/by-label/ROOTB", SYMLINK+="disk/by-slot/other/BOOT"
+SUBSYSTEM=="block", KERNEL=="mmcblk*p*[0-9]", IMPORT{program}="/usr/bin/rpi-slot -u %k", SYMLINK+="$env{SLOT}"
+SUBSYSTEM=="block", KERNEL=="nvme*n*p*[0-9]", IMPORT{program}="/usr/bin/rpi-slot -u %k", SYMLINK+="$env{SLOT}"

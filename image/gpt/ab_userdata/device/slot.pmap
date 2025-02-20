@@ -1,0 +1,5 @@
+# genimage.cfg.in
+BOOTA=2
+BOOTB=3
+SYSTEMA=4
+SYSTEMB=5

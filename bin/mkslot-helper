@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -u
+
+# Read the slot partition map from stdin (or arg1) and write the
+# fully assembled helper to stdout.
+
+cat ${RPI_TEMPLATES}/slot-helper.in.head
+
+pmap=${1--}
+while IFS= read -r line; do
+  printf '%s\n' "$line"
+done < <(cat -- "$pmap")
+
+cat ${RPI_TEMPLATES}/slot-helper.in.tail

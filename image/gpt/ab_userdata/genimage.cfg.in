@@ -16,6 +16,7 @@ image <IMAGE_DIR>/<IMAGE_NAME>.<IMAGE_SUFFIX> {
       bootable = true
    }
 
+   # <slot.pmap>
    partition bootA {
       in-partition-table = true
       image = bootA.vfat
@@ -30,17 +31,18 @@ image <IMAGE_DIR>/<IMAGE_NAME>.<IMAGE_SUFFIX> {
       bootable = true
    }
 
-   partition rootA {
+   partition systemA {
       in-partition-table = true
-      image = rootA.ext4
+      image = systemA.ext4
       partition-type-uuid = L
    }
 
-   partition rootB {
+   partition systemB {
       in-partition-table = true
-      image = rootB.ext4
+      image = systemB.ext4
       partition-type-uuid = L
    }
+   # </slot.pmap>
 
    partition data {
       in-partition-table = true
@@ -64,17 +66,17 @@ image bootA.vfat {
    }
    size = <FW_SIZE>
    mountpoint = "/boot/firmware"
-   exec-pre = "<SLOTP> A BOOTA"
+   exec-pre = "<SLOTP> BOOT"
 }
 
-image rootA.ext4 {
+image systemA.ext4 {
    ext4 {
       use-mke2fs = true
-      label = "ROOTA"
+      label = "SYSTEMA"
    }
-   size = <ROOT_SIZE>
+   size = <SYSTEM_SIZE>
    mountpoint = "/"
-   exec-pre = "<SLOTP> A ROOTA"
+   exec-pre = "<SLOTP> SYSTEM"
 }
 
 image bootB.vfat {
@@ -83,17 +85,17 @@ image bootB.vfat {
    }
    size = <FW_SIZE>
    mountpoint = "/boot/firmware"
-   exec-pre = "<SLOTP> B BOOTB"
+   exec-pre = "<SLOTP> BOOT"
 }
 
-image rootB.ext4 {
+image systemB.ext4 {
    ext4 {
       use-mke2fs = true
-      label = "ROOTB"
+      label = "SYSTEMB"
    }
-   size = <ROOT_SIZE>
+   size = <SYSTEM_SIZE>
    mountpoint = "/"
-   exec-pre = "<SLOTP> B ROOTB"
+   exec-pre = "<SLOTP> SYSTEM"
 }
 
 image data.ext4 {

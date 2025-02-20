@@ -1,6 +1,0 @@
-#!/bin/sh
-
-set -u
-
-install -m 0644 -D ../device/slot.rules $1/etc/udev/rules.d/90-rpi-slot.rules
-install -m 0755 -D ../device/slot $1/usr/bin/slot
