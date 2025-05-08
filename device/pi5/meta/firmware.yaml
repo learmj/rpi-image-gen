@@ -1,0 +1,14 @@
+---
+name: pi5-firmware
+mmdebstrap:
+  packages:
+    - raspi-firmware
+  customize-hooks:
+    - mkdir -p $1/boot/firmware
+    - ln -sf firmware/overlays $1/boot/overlays
+    - install -m 644 $RPI_TEMPLATES/boot-firmware/cmdline.txt $1/boot/firmware/
+    - install -m 644 $RPI_TEMPLATES/boot-firmware/config.txt $1/boot/firmware/
+  dpkgopts:
+  - path-exclude=/usr/lib/raspi-firmware/*
+  - path-include=/usr/lib/raspi-firmware/LICENCE.broadcom
+

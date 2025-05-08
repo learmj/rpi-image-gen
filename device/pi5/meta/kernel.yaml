@@ -1,0 +1,14 @@
+---
+name: pi5-kernel
+mmdebstrap:
+  architectures:
+    - arm64
+  packages:
+    - linux-image-rpi-2712
+    - initramfs-tools
+  customize-hooks:
+    - sed -i 's/^update_initramfs=.*/update_initramfs=no/' $1/etc/initramfs-tools/update-initramfs.conf
+  dpkgopts:
+  - path-exclude=/usr/lib/linux-image-*-2712/broadcom/bcm2710*
+  - path-exclude=/usr/lib/linux-image-*-2712/broadcom/bcm2711*
+  - path-exclude=/usr/lib/linux-image-*-2712/broadcom/bcm2837*
