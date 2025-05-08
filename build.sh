@@ -265,37 +265,50 @@ layer_push()
 {
    msg "Load layer [$1] $2"
    case "$1" in
-      image)
-         if [[ -s "${IGIMAGE}/meta/$2.yaml" ]] ; then
-            [[ -f "${IGIMAGE}/meta/$2.defaults" ]] && \
-               aggregate_options "meta" "${IGIMAGE}/meta/$2.defaults"
-            ARGS_LAYERS+=('--config' "${IGIMAGE}/meta/$2.yaml")
-            return
-         fi
-         ;& # image layer can pull in core layers, but not vice versa
-
-      main|auto)
-         if [[ -n $EXT_NSMETA && -s "${EXT_NSMETA}/$2.yaml" ]] ; then
-            [[ -f "${EXT_NSMETA}/$2.defaults" ]] && \
-               aggregate_options "meta" "${EXT_NSMETA}/$2.defaults"
-            ARGS_LAYERS+=('--config' "${EXT_NSMETA}/$2.yaml")
-
-         elif [[ -n $EXT_META && -s "${EXT_META}/$2.yaml" ]] ; then
-            [[ -f "${EXT_META}/$2.defaults" ]] && \
-               aggregate_options "meta" "${EXT_META}/$2.defaults"
-            ARGS_LAYERS+=('--config' "${EXT_META}/$2.yaml")
-
-         elif [[ -s "${META}/$2.yaml" ]] ; then
-            [[ -f "${META}/$2.defaults" ]] && \
-               aggregate_options "meta" "${META}/$2.defaults"
-            ARGS_LAYERS+=('--config' "${META}/$2.yaml")
-         else
-            die "Invalid meta layer specifier: $2 (not found)"
-         fi
+      image|device|main|auto)
+         # valid
          ;;
       *)
          die "Invalid layer scope" ;;
    esac
+
+   if [[ "$1" == image ]] ; then
+      if [[ -s "${IGIMAGE}/meta/$2.yaml" ]] ; then
+         [[ -f "${IGIMAGE}/meta/$2.defaults" ]] && \
+            aggregate_options "meta" "${IGIMAGE}/meta/$2.defaults"
+         ARGS_LAYERS+=('--config' "${IGIMAGE}/meta/$2.yaml")
+         return
+      fi
+   fi
+
+   if [[ "$1" == device ]] ; then
+      if [[ -s "${IGDEVICE}/meta/$2.yaml" ]] ; then
+         [[ -f "${IGDEVICE}/meta/$2.defaults" ]] && \
+            aggregate_options "meta" "${IGDEVICE}/meta/$2.defaults"
+         ARGS_LAYERS+=('--config' "${IGDEVICE}/meta/$2.yaml")
+         return
+      fi
+   fi
+
+   # image and device layers can pull in core layers, but not vice versa
+
+   if [[ -n $EXT_NSMETA && -s "${EXT_NSMETA}/$2.yaml" ]] ; then
+      [[ -f "${EXT_NSMETA}/$2.defaults" ]] && \
+         aggregate_options "meta" "${EXT_NSMETA}/$2.defaults"
+      ARGS_LAYERS+=('--config' "${EXT_NSMETA}/$2.yaml")
+
+   elif [[ -n $EXT_META && -s "${EXT_META}/$2.yaml" ]] ; then
+      [[ -f "${EXT_META}/$2.defaults" ]] && \
+         aggregate_options "meta" "${EXT_META}/$2.defaults"
+      ARGS_LAYERS+=('--config' "${EXT_META}/$2.yaml")
+
+   elif [[ -s "${META}/$2.yaml" ]] ; then
+      [[ -f "${META}/$2.defaults" ]] && \
+         aggregate_options "meta" "${META}/$2.defaults"
+      ARGS_LAYERS+=('--config' "${META}/$2.yaml")
+   else
+      die "Invalid meta layer specifier: $2 (not found)"
+   fi
 }
 
 
@@ -312,7 +325,13 @@ load_profile() {
 }
 
 
-# Assemble meta layers from main profile
+# Add layers from device class profile
+if igconf_isset device_class_profile ; then
+   load_profile device "${IGDEVICE}/profile/${IGconf_device_class_profile}"
+fi
+
+
+# Add layers from main profile
 load_profile main "$IGPROFILE"
 
 

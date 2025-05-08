@@ -26,7 +26,7 @@ The following terms are used in this document:
 
 *Image* Identifies the configuration used to create the device disk image file.
 
-*Layer* A single file of YAML metadata.
+*Layer* A single file of YAML metadata, typically containing a list of packages and script operations.
 
 *Meta* A directory containing YAML layers in a defined hierarchy.
 
@@ -118,18 +118,29 @@ The image directory contains the necessary assets with which rpi-image-gen will 
 
 === meta
 
-The meta directory contains YAML layers which are individual 'recipes' used for rootfs creation. The search path for additional meta layers can be augmented by usage of ```EXT_DIR``` and optional namespace.
+A meta directory contains YAML layers which are individual 'recipes' used for rootfs creation. The search path for additional meta layers can be augmented by usage of ```EXT_DIR``` and optional namespace.
 
 === profile
 
-The profile is a plain text file which supports comments via ```#``` and where each line contains a YAML layer. The profile directory contains rpi-image-gen profiles. For example, if a Profile contained:
+A profile is a plain text file which supports comments via ```#``` and where each line contains a YAML layer. A ```profile``` directory contains one or more profile files. For example, if ```profile/myprofile``` contained:
 
 ----
 # My device layer
 my/fantastic/layer
 ----
 
-...```my/fantastic/layer.yaml``` would be searched for.
+...```my/fantastic/layer.yaml``` would be searched for and added to the list. +
+
+rpi-image-gen supports four different sources of profiles:
+
+* Auto (automatically included profiles, e.g. auto-selected by inclusion of a build-time switch)
+* Device Class (device class specific profiles, e.g. to include firmware particular to a device)
+* Image (image layout specific profiles, e.g. to include a package required to support that image layout)
+* Main (top level profile selected by the config file)
+
+Device Class and Image components can declare their own layers in ```<device>/meta``` and ```<image>/meta``` which allows their profile(s) to select layers particular to those components. Device Class and Image profiles can also select layers from the top level ```meta``` directory.
+
+All profiles are aggregated, resulting in a list of layers which serves as an input to the build process.
 
 === sbom
 
@@ -339,7 +350,7 @@ appdata_size=1G
 
 === Root File System Construction 
 
-After assembling the environment variables from the input sources, rpi-image-gen reads the Profile and validates the path of each YAML layer before reading its default settings (if present) and assembling each layer as an argument to bdebstrap. A layer must adhere to `bdebstrap` YAML syntax. Please refer to the bdebstrap man page for further details. It's also worth pointing out that if authoring shell expressions in YAML, it may be necessary to adopt usage of particular block scalar styles to achieve newlines inside a block. For example:
+After assembling the environment variables from the input sources, rpi-image-gen reads the Profile(s) and validates the path of each YAML layer before reading its default settings (if present) and assembling each layer as an argument to bdebstrap. A layer must adhere to `bdebstrap` YAML syntax. Please refer to the bdebstrap man page for further details. It's also worth pointing out that if authoring shell expressions in YAML, it may be necessary to adopt usage of particular block scalar styles to achieve newlines inside a block. For example:
 
 ----
   - |-
