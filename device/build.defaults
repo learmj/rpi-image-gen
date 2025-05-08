@@ -32,6 +32,14 @@ timezone="Europe/London"
 # The profile used to construct the device root filesystem
 profile=
 
+# Optional device class specific profile residing under <device dir>/profile/.
+# This is treated as an additional profile and its specified layers will be
+# aggregated into the configuration. A device class may require a profile in
+# order to support functionality particular to the hardware, or to provide
+# specific device level support (eg via certain firmware or pkg(s)).
+# A device may define this in its options file.
+class_profile=
+
 # If y, automatically include net-misc/openssh-server in the profile to enable
 # SSH access to the device via user1.
 ssh_user1=n
@@ -42,3 +50,6 @@ storage_type=sd
 # Logical sector size of the device storage for which the image is intended. 
 # The output raw image file size will be a multiple of this value.
 sector_size=512
+
+# No device class specific profile by default
+class_profile=
