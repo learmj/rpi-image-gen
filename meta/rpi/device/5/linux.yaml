@@ -1,0 +1,13 @@
+---
+name: rpi-5-linux
+env:
+  INITRD: "No"
+mmdebstrap:
+  architectures:
+    - arm64
+  packages:
+    - linux-image-rpi-2712
+  dpkgopts:
+  - path-exclude=/usr/lib/linux-image-*-2712/broadcom/bcm2710*
+  - path-exclude=/usr/lib/linux-image-*-2712/broadcom/bcm2711*
+  - path-exclude=/usr/lib/linux-image-*-2712/broadcom/bcm2837*

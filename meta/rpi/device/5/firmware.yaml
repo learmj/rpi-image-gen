@@ -1,0 +1,21 @@
+---
+name: rpi-5-firmware
+mmdebstrap:
+  packages:
+    - raspi-firmware
+    - firmware-brcm80211
+  customize-hooks:
+    - mkdir -p $1/boot/firmware
+    - ln -sf firmware/overlays $1/boot/overlays
+    - install -m 644 $RPI_TEMPLATES/boot-firmware/cmdline.txt $1/boot/firmware/
+    - install -m 644 $RPI_TEMPLATES/boot-firmware/config.txt $1/boot/firmware/
+  dpkgopts:
+  - path-exclude=/usr/lib/raspi-firmware/*
+  - path-include=/usr/lib/raspi-firmware/LICENCE.broadcom
+  - path-exclude=/usr/share/doc/firmware-brcm80211/
+  - path-include=/usr/share/doc/firmware-brcm80211/copyright
+  - path-exclude=/lib/firmware/cypress/*
+  - path-include=/lib/firmware/cypress/cyfmac43455*
+  - path-exclude=/lib/firmware/brcm/*
+  - path-include=/lib/firmware/brcm/brcmfmac43455-sdio.raspberrypi,5*
+  - path-include=/lib/firmware/brcm/brcmfmac43455-sdio.txt

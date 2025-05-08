@@ -1,3 +1,4 @@
-# Build defaults for CM5 class devices
+# Build defaults for Raspberry Pi CM5 class devices
 class=cm5
 storage_type=emmc
+profile=base

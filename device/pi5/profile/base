@@ -1,0 +1,4 @@
+# Raspberry Pi 5 specific profile
+
+rpi/device/5/firmware
+rpi/device/5/linux
