@@ -8,8 +8,7 @@
    {
       "partitions": [
          {
-            "name": "config",
-            "id": "1"
+            "image": "config"
          }
       ]
    },
@@ -18,7 +17,7 @@
          "A": {
             "partitions": [
                {
-                  "name": "bootA",
+                  "image": "bootA",
                   "id": "2",
                   "role": "boot"
                }
@@ -31,7 +30,7 @@
          "B": {
             "partitions": [
                {
-                  "name": "bootB",
+                  "image": "bootB",
                   "id": "3",
                   "role": "boot"
                }
@@ -43,15 +42,17 @@
       "slots": {
          "A": {
             "encrypted": {
-               "luks": {
-                  "version": 2,
+               "luks2": {
                   "key_size": 512,
                   "cipher": "aes-xts-plain64",
-                  "hash": "sha256"
+                  "hash": "sha256",
+                  "label": "rootA",
+                  "mname": "cryptrootA",
+                  "etype": "raw"
                },
                "partitions": [
                   {
-                     "name": "systemA",
+                     "image": "systemA",
                      "id": "cryptrootA",
                      "role": "system"
                   }
@@ -64,15 +65,17 @@
       "slots": {
          "B": {
             "encrypted": {
-               "luks": {
-                  "version": 2,
+               "luks2": {
                   "key_size": 512,
                   "cipher": "aes-xts-plain64",
-                  "hash": "sha256"
+                  "hash": "sha256",
+                  "label": "rootB",
+                  "mname": "cryptrootB",
+                  "etype": "raw"
                },
                "partitions": [
                   {
-                     "name": "systemB",
+                     "image": "systemB",
                      "id": "cryptrootB",
                      "role": "system"
                   }
@@ -84,8 +87,7 @@
    {
       "partitions": [
          {
-            "name": "data",
-            "id": "6"
+            "image": "data"
          }
       ]
    }
