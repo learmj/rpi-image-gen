@@ -7,7 +7,7 @@ genimg_in=$2
 
 
 # Load pre-defined UUIDs
-. ${genimg_in}/img_uuids
+. ${genimg_in}/part.ids
 
 
 # Set up the partition layout for tryboot support. Partition numbering

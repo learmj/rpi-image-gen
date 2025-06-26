@@ -23,10 +23,10 @@ SYSTEMA_UUID=$(uuidgen)
 SYSTEMB_UUID=$(uuidgen)
 CRYPT_UUID=$(uuidgen)
 
-rm -f ${IGconf_sys_outputdir}/img_uuids
+rm -f ${IGconf_sys_outputdir}/part.ids
 for v in BOOTA_LABEL BOOTA_UUID BOOTB_LABEL BOOTB_UUID SYSTEMA_UUID SYSTEMB_UUID CRYPT_UUID; do
     eval "val=\$$v"
-    echo "$v=$val" >> "${IGconf_sys_outputdir}/img_uuids"
+    echo "$v=$val" >> "${IGconf_sys_outputdir}/part.ids"
 done
 
 
