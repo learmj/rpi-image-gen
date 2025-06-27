@@ -1,0 +1,118 @@
+#!/bin/bash
+#
+# Sets up initramfs to unlock LUKS containers
+
+set -eu
+
+if igconf isset image_pmap; then
+    case $IGconf_image_pmap in
+        crypt|hybrid) : ;;
+        *) exit 0 ;;
+    esac
+else
+    exit 0
+fi
+
+
+pkgs=(cryptsetup-bin initramfs-tools kpartx libgcc-s1)
+#pkgs+=(busybox)
+chroot "$1" apt install -y "${pkgs[@]}"
+
+
+#CRYPTROOT_VER=1.1.0
+#CRYPTROOT_PKG=cryptroot-package_${CRYPTROOT_VER}_arm64.deb
+#mkdir -p $1/tmp
+#cp ${IGTOP}/pkg/dist/rpi/${CRYPTROOT_PKG} $1/tmp
+#chroot $1 dpkg --path-exclude='*' --path-include='/usr/bin/cryptkey-fetch' -i /tmp/${CRYPTROOT_PKG}
+
+
+mkdir -p $1/etc/initramfs-tools/hooks
+mkdir -p $1/etc/initramfs-tools/scripts/init-premount
+
+
+# initramfs generation: Create a hook to install assets needed for unlock
+cat <<- 'EOF' > $1/etc/initramfs-tools/hooks/rpi-cryptroot-install
+#!/bin/sh
+case $1 in
+   prereqs) echo ""; exit 0;;
+esac
+. /usr/share/initramfs-tools/hook-functions
+copy_exec /usr/sbin/kpartx
+copy_exec /usr/sbin/cryptsetup
+
+# https://bugs.launchpad.net/ubuntu/+source/initramfs-tools/+bug/1958594
+for so in $(ldconfig -p | sed -nr 's/^\s*libgcc_s\.so.*=>\s*//p'); do
+   copy_exec "$so"
+done
+
+for module in $(find /usr/lib/modules/$version \
+   \( \
+   -name 'dm-mod.*' \
+   -o \
+   -name 'dm-crypt.*' \
+   -o \
+   -name 'af_alg.*' \
+   -o \
+   -name 'algif_skcipher.*' \
+   -o \
+   -name 'libaes.*' \
+   -o \
+   -name 'aes_generic.*' \
+   -o \
+   -name 'aes-arm64.*' \
+   -o \
+   -name 'libpoly1305.*' \
+   -o \
+   -name 'nhpoly1305.*' \
+   -o \
+   -name 'adiantum.*' \
+   -o \
+   -name 'libchacha.*' \
+   -o \
+   -name 'chacha-neon.*' \
+   -o \
+   -name 'chacha_generic.*' \
+   \) \
+   -exec basename {} \; |sed 's/\.ko\.xz$//; s/\.ko$//' ); do
+   manual_add_modules $module
+done
+EOF
+chmod +x $1/etc/initramfs-tools/hooks/rpi-cryptroot-install
+
+
+# Fetch and load PMAP crypt attributes
+pmap -c -f ${IGconf_sys_outputdir}/provisionmap.json > ${IGconf_sys_outputdir}/crypt.containers
+[[ $? -eq 0 ]] || die "Error: failed to fetch crypt config from PMAP"
+. ${IGconf_sys_outputdir}/crypt.containers
+
+
+# initramfs run-time: Create a script to unlock all containers in the PMAP
+cat > $1/etc/initramfs-tools/scripts/init-premount/rpi-cryptroot <<EOF
+#!/bin/sh
+export "PATH=/usr/sbin:/usr/bin:$PATH"
+case \$1 in
+   prereqs) echo ""; exit 0;;
+esac
+. /scripts/functions
+EOF
+
+# Emit one block per container
+for container in "${CONTAINERS[@]}"; do
+   uuid_var="${container}_UUID"
+   name_var="${container}_MNAME"
+   uuid="${!uuid_var}"
+   name="${!name_var}"
+
+   cat >> $1/etc/initramfs-tools/scripts/init-premount/rpi-cryptroot <<EOF
+echo "Unlock $uuid ($name)"
+echo -n foobar | cryptsetup luksOpen /dev/disk/by-uuid/$uuid $name
+if [ $? -ne 0 ]; then
+    echo "Failed to unlock $uuid" >&2
+    # TODO
+    # reboot -f # system will be unusable as intended
+    # rescue    # trigger reboot into rescue
+fi
+kpartx -a /dev/mapper/$name
+EOF
+done
+chmod +x $1/etc/initramfs-tools/scripts/init-premount/rpi-cryptroot

@@ -142,6 +142,48 @@ def slotvars(data):
                             print(f"{role.upper()}{slot.upper()}_ENCRYPTED=n")
 
 
+def cryptvars(data):
+    containers = []
+    def find_encrypted(obj):
+        found = False
+
+        if isinstance(obj, dict):
+            if "encrypted" in obj:
+                found = True
+                encrypted_obj = obj["encrypted"]
+
+                if "luks2" in encrypted_obj:
+                    luks2_attrs = encrypted_obj["luks2"]
+
+                    # Use mname as prefix
+                    mname = luks2_attrs.get("mname")
+                    if mname:
+                        print(f"{mname}_MNAME={mname}")
+                        containers.append(mname)
+
+                        uuid_val = luks2_attrs.get("uuid")
+                        if uuid_val:
+                            print(f"{mname}_UUID={uuid_val}")
+
+            # Recurse for this dict
+            for value in obj.values():
+                if find_encrypted(value):
+                    found = True
+
+        elif isinstance(obj, list):
+            # Recurse for this list
+            for item in obj:
+                if find_encrypted(item):
+                    found = True
+
+        return found
+
+    if find_encrypted(data):
+        print("CONTAINERS=\"" + " ".join(containers) + "\"")
+    else:
+        sys.exit(1)
+
+
 
 # Best effort general purpose JSON key retrieval
 def get_key(data, key_path, default=None):
@@ -184,6 +226,10 @@ if __name__ == '__main__':
                         action="store_true",
                         help="Print slot map variables")
 
+    parser.add_argument("-c", "--cryptvars",
+                        action="store_true",
+                        help="Print encrypted object variables")
+
     parser.add_argument("--get-key",
                         help="Dot-separated key path to retrieve from PMAP JSON")
 
@@ -206,4 +252,8 @@ if __name__ == '__main__':
 
     if args.slotvars:
         slotvars(data)
+        sys.exit(0);
+
+    if args.cryptvars:
+        cryptvars(data)
         sys.exit(0);

@@ -109,8 +109,8 @@ _basename() {
 
 uuid2dev() {
     [ -z "$1" ] && return 1
-    _dev=$(blkid -t UUID=${1} -o device) || return 1
-    echo $(_basename "$_dev")
+    _dev=$(blkid -t UUID="${1}" -o device) || return 1
+    _basename "$_dev"
 }
 
 
@@ -135,20 +135,21 @@ fi
 
 
 # Resolve slot configuration UUIDs
+BOOTA=X
+BOOTB=X
+SYSTEMA=X
+SYSTEMB=X
+
 # shellcheck disable=SC2154
 for b in BOOTA BOOTB SYSTEMA SYSTEMB ; do
     var="${b}_UUID"
     eval 'val="$'"$var"'"'
-    dev=$(uuid2dev "$val") || die "Error mapping UUID $val to blkdev"
+    if ! dev=$(uuid2dev "$val"); then
+       err "Error mapping UUID $val to blkdev"
+       break
+    fi
     eval "$b=\$dev"
 done
-
-
-# Mandatory
-: "${BOOTA:?}"
-: "${BOOTB:?}"
-: "${SYSTEMA:?}"
-: "${SYSTEMB:?}"
 
 
 if [ -z "$arg" ] ; then
