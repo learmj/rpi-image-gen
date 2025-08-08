@@ -6,10 +6,12 @@ from typing import Optional, Dict, Any, Tuple
 
 
 class ConfigLoader:
-    def __init__(self, cfg_path: str, expand_vars: bool = True, overrides_path: Optional[str] = None):
+    def __init__(self, cfg_path: str, *, expand_vars: bool = True, overrides_path: Optional[str] = None, search_paths: Optional[list[str]] = None):
         self.cfg_path = cfg_path
         self.overrides_path = overrides_path
         self.expand_vars = expand_vars
+        # Additional include search paths (default ./config)
+        self.search_paths = [Path(p).resolve() for p in (search_paths or ["./config"])]
         self.file_format = self._detect_format()
 
         # Data will be stored as Dict[str, Dict[str, str]] regardless of source format
@@ -37,6 +39,23 @@ class ConfigLoader:
         else:
             # Default to INI for backward compatibility
             return 'ini'
+
+    def _resolve_include(self, inc_name: str, parent_dir: Path) -> Path:
+        """Resolve include file by trying parent dir then configured search paths."""
+        # prevent absolute
+        inc_rel = Path(inc_name)
+        if inc_rel.is_absolute():
+            raise ValueError(f"Absolute include paths not allowed (found {inc_name})")
+        # 1. parent directory
+        cand = (parent_dir / inc_rel).resolve()
+        if cand.exists():
+            return cand
+        # 2. search additional include paths
+        for base in self.search_paths:
+            cand2 = (base / inc_rel).resolve()
+            if cand2.exists():
+                return cand2
+        raise FileNotFoundError(f"Included file '{inc_name}' not found (searched parent dir and {self.search_paths})")
 
     def _load(self):
         if not os.path.exists(self.cfg_path):
@@ -69,9 +88,7 @@ class ConfigLoader:
                 inc_file = yaml_data['include'].get('file')
                 if not inc_file:
                     raise ValueError(f"YAML include directive in {path} missing 'file' key")
-                if Path(inc_file).is_absolute():
-                    raise ValueError(f"Absolute include paths not allowed in YAML include (found {inc_file})")
-                inc_path = (path.parent / inc_file).resolve()
+                inc_path = self._resolve_include(inc_file, path.parent)
                 included_sections = _load_yaml_recursive(inc_path, visited)
                 # Remove include key before merging
                 yaml_data.pop('include', None)
@@ -107,9 +124,7 @@ class ConfigLoader:
                         if len(parts) != 2:
                             raise ValueError(f"Invalid !include directive in {path}: {line}")
                         inc_name = parts[1].strip()
-                        if Path(inc_name).is_absolute():
-                            raise ValueError(f"Absolute include paths not allowed in INI include (found {inc_name})")
-                        inc_path = (path.parent / inc_name).resolve()
+                        inc_path = self._resolve_include(inc_name, path.parent)
                         _load_ini_recursive(inc_path, visited, cfg)
                     else:
                         buffer_lines.append(line)
@@ -371,6 +386,7 @@ def ConfigLoader_register_parser(subparsers):
     parser = subparsers.add_parser("config", help="Config utilities (.ini/.yaml)")
     parser.add_argument("cfg_path", nargs="?", help="Path to config file (.ini/.yaml) – omit when using --gen")
     parser.add_argument("--section", help="Section to load (load all if omitted)")
+    parser.add_argument("--path", metavar="DIRS", help="Colon-separated search path for included files")
     parser.add_argument("--no-expand", action="store_true", help="Disable $VAR expansion")
     parser.add_argument("--write-to", metavar="FILE", help="Write variables to file instead of env load")
     parser.add_argument("--overrides", metavar="FILE", help="Override file with key=value pairs")
@@ -387,7 +403,12 @@ def _main(args):
         print("Error: cfg_path is required unless --gen is used", file=sys.stderr)
         return
 
-    loader = ConfigLoader(args.cfg_path, expand_vars=not args.no_expand, overrides_path=args.overrides)
+    loader = ConfigLoader(
+        args.cfg_path,
+        expand_vars=not args.no_expand,
+        overrides_path=args.overrides,
+        search_paths=(args.path.split(":") if args.path else ["./config"]),
+    )
     if args.write_to:
         loader.write_file(args.write_to, args.section)
     else:
