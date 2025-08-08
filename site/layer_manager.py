@@ -1,5 +1,7 @@
 import os
 import glob
+import shutil
+import argparse
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from collections import OrderedDict
@@ -694,12 +696,34 @@ mmdebstrap:
 def LayerManager_register_parser(subparsers, root=None):
     if root:
         default_paths = f'{root}/meta:{root}/device:{root}/image'
-        help_text = f'Colon-separated search paths for layers (default: {root}/meta:{root}/device:{root}/image)'
+        help_text = 'Colon-separated search paths for layers'
     else:
         default_paths = './meta:./device:./image'
-        help_text = 'Colon-separated search paths for layers (default: ./meta:./device:./image)'
+        help_text = 'Colon-separated search paths for layers'
 
-    parser = subparsers.add_parser("layer", help="Layer utilities")
+    # Use terminal width for help formatting
+    terminal_width = shutil.get_terminal_size().columns
+    formatter_class = lambda prog: argparse.HelpFormatter(prog, width=terminal_width)
+
+    parser = subparsers.add_parser("layer", help="Layer utilities", add_help=False,
+                                   formatter_class=formatter_class)
+
+    class HelpAction(argparse.Action):
+        def __init__(self, option_strings, dest=argparse.SUPPRESS, default=argparse.SUPPRESS, help=None):
+            super().__init__(option_strings=option_strings, dest=dest, default=default, nargs=0, help=help)
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            # Get the current search paths from the --path argument
+            current_paths = getattr(namespace, 'path', None) or default_paths
+            search_paths = [p.strip() for p in current_paths.split(':') if p.strip()]
+
+            parser.print_help()
+            # Then print search path without wrapping
+            print(f"\nSearch path: {':'.join(search_paths)}")
+            parser.exit()
+
+    parser.add_argument('-h', '--help', action=HelpAction,
+                       help='show this help message and exit')
 
     parser.add_argument('--path', '-p', default=default_paths, help=help_text)
     parser.add_argument('--patterns', nargs='+', default=['*.yaml', '*.yml'],
