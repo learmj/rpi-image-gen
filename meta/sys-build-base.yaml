@@ -40,14 +40,11 @@
 # X-Env-Var-apt_cachedir:
 # X-Env-Var-apt_cachedir-Desc: Cache directory for APT operations.
 # Use this to specify the root directory APT uses when downloading packages.
-# APT will re-use packages found this directory where possible, meaning that
-# usage of this directory can decrease rebuild time.
-# The directory will be passed to bdebstrap via aptopt Dir::Cache. Sub-
-# directory archives will be created if it doesn't exist and passed as
-# Dir::Cache::archives.
-# Neither directory will be cleaned up upon build completion.
+# APT will re-use packages from this directory where possible, meaning that
+# usage of this directory can decrease build time.
 # By default, the cache dir resides in the chroot and is cleaned up
 # automatically upon build completion.
+# This is currently an experimental feature requiring some manual involvement.
 # X-Env-Var-apt_cachedir-Required: n
 # X-Env-Var-apt_cachedir-Valid: string
 # X-Env-Var-apt_cachedir-Set: n
