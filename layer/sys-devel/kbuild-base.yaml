@@ -1,0 +1,21 @@
+# METABEGIN
+# X-Env-Layer-Name: kbuild-base
+# X-Env-Layer-Category: toolchain
+# X-Env-Layer-Desc: Linux kernel build environment with Debian packaging
+#  support.
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires: gnu-common
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - bc
+    - bison
+    - flex
+    - libssl-dev
+    - libelf-dev
+    - kmod
+    - cpio
+    - rsync
+    - libncurses-dev
+    - debhelper

@@ -1,0 +1,25 @@
+# METABEGIN
+# X-Env-Layer-Name: debian-dev-tools
+# X-Env-Layer-Category: toolchain
+# X-Env-Layer-Desc: Debian package development and maintenance tools
+# X-Env-Layer-Version: 1.0.0
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - debhelper
+    - devscripts
+    - fakeroot
+    - dpkg-dev
+    - lintian
+    - git-buildpackage
+    - pristine-tar
+    - autopkgtest
+    - sbuild
+    - schroot
+    - lsb-release
+    - quilt
+    - dh-make
+    - equivs
+    - dput
+    - debian-policy

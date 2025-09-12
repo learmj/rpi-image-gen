@@ -126,6 +126,24 @@ parameter_assembly()
    printf 'LAYER_HOOKS="%s"\n'  "$IGTOP/layer-hooks"      >> "${ctx[IGENVF]}"
    printf 'RPI_TEMPLATES="%s"\n' "$IGTOP/templates/rpi" >> "${ctx[IGENVF]}"
 
+   # Toolchain base detection
+   if dpkg-architecture >/dev/null 2>&1; then
+      DEB_BUILD_ARCH="${DEB_BUILD_ARCH:-$(dpkg-architecture -qDEB_BUILD_ARCH)}"
+      DEB_HOST_ARCH="${DEB_HOST_ARCH:-$(dpkg-architecture -a${ARCH:-arm64} -qDEB_HOST_ARCH)}"
+
+      if [ "$DEB_BUILD_ARCH" = "$DEB_HOST_ARCH" ]; then
+         TOOLCHAIN_MODE="native"
+      else
+         TOOLCHAIN_MODE="cross"
+      fi
+
+      printf 'DEB_BUILD_ARCH="%s"\n' "$DEB_BUILD_ARCH" >> "${ctx[IGENVF]}"
+      printf 'DEB_HOST_ARCH="%s"\n' "$DEB_HOST_ARCH" >> "${ctx[IGENVF]}"
+      printf 'TOOLCHAIN_MODE="%s"\n' "$TOOLCHAIN_MODE" >> "${ctx[IGENVF]}"
+   else
+      warn "dpkg-architecture not found: source build support unavailable"
+   fi
+
    # Config sanity checks
    for need in layer; do
       grep -q "^IGconf_${need}" "${ctx[IGENVF]}" \

@@ -1,0 +1,17 @@
+# METABEGIN
+# X-Env-Layer-Name: build-user
+# X-Env-Layer-Category: toolchain
+# X-Env-Layer-Desc: Environmental setup for dedicated build user
+# X-Env-Layer-Version: 1.0.0
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - sudo
+    - adduser
+    - bash
+  customize-hooks:
+    - chroot $1 adduser --disabled-password --gecos \"\" --uid 1000 build
+    - chroot $1 usermod -aG sudo build
+    - echo "build ALL=(ALL) NOPASSWD:ALL" > $1/etc/sudoers.d/90-build
+    - chroot $1 sh -c 'chmod 440 /etc/sudoers.d/90-build'

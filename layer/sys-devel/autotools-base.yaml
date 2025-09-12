@@ -1,0 +1,14 @@
+# METABEGIN
+# X-Env-Layer-Name: autotools-base
+# X-Env-Layer-Category: toolchain
+# X-Env-Layer-Desc: Autotools build environment
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires: gnu-common
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - autotools-dev
+    - autoconf
+    - automake
+    - libtool

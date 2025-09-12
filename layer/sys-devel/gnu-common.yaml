@@ -1,0 +1,23 @@
+# METABEGIN
+# X-Env-Layer-Name: gnu-common
+# X-Env-Layer-Category: toolchain
+# X-Env-Layer-Desc: Common GNU toolchain setup with ccache and environment
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires: ${DEB_HOST_ARCH}-toolchain-${TOOLCHAIN_MODE},build-user
+# METAEND
+---
+env:
+  PKG_CONFIG: "pkg-config"
+
+mmdebstrap:
+  packages:
+    - ca-certificates
+    - build-essential
+    - pkg-config
+    - ccache
+    - make
+  customize-hooks:
+    - install -d -o 1000 -g 1000 -m 0755 $1/var/cache/ccache
+    - mkdir -p $1/etc/profile.d/
+    - ${LAYER_HOOKS}/sys-devel/tcenv > $1/toolchain.env
+    - install -m 0755 ${LAYER_HOOKS}/sys-devel/tcsetup.sh $1/etc/profile.d/90-tcsetup.sh

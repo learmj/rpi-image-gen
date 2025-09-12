@@ -1,0 +1,27 @@
+# METABEGIN
+# X-Env-Layer-Name: arm64-toolchain-native
+# X-Env-Layer-Category: toolchain
+# X-Env-Layer-Desc: ARM64 native compilation toolchain
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires:
+# X-Env-Layer-Provides: arm64-toolchain
+# METAEND
+---
+env:
+  CC: "gcc"
+  CXX: "g++"
+  AR: "ar"
+  LD: "ld"
+  RANLIB: "ranlib"
+  STRIP: "strip"
+  OBJCOPY: "objcopy"
+  OBJDUMP: "objdump"
+  NM: "nm"
+  SIZE: "size"
+  READELF: "readelf"
+
+mmdebstrap:
+  architectures:
+    - arm64
+  packages:
+    - build-essential
