@@ -109,9 +109,9 @@ image bootA.vfat {
 image systemA.ext4 {
    ext4 {
       use-mke2fs = true
-      mke2fs-conf = <MKE2FSCONF>
+      mke2fs-conf = <MKE2FS_CONF>
       label = "SYSTEMA"
-      extraargs = "-U <SYSTEMA_UUID>"
+      extraargs = "<MKE2FS_ARGSA>"
    }
    size = <SYSTEM_SIZE>
    mountpoint = "/"
@@ -131,9 +131,9 @@ image bootB.vfat {
 image systemB.ext4 {
    ext4 {
       use-mke2fs = true
-      mke2fs-conf = <MKE2FSCONF>
+      mke2fs-conf = <MKE2FS_CONF>
       label = "SYSTEMB"
-      extraargs = "-U <SYSTEMB_UUID>"
+      extraargs = "<MKE2FS_ARGSB>"
    }
    size = <SYSTEM_SIZE>
    mountpoint = "/"
