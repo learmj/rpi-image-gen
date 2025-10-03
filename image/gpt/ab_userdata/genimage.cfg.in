@@ -54,27 +54,27 @@ image <IMAGE_NAME>.<IMAGE_SUFFIX> {
       bootable = true
    }
 
-   partition bootA {
+   partition boot_a {
       in-partition-table = true
       image = bootA.vfat
       partition-type-uuid = F
       bootable = true
    }
 
-   partition bootB {
+   partition boot_b {
       in-partition-table = true
       image = bootB.vfat
       partition-type-uuid = F
       bootable = true
    }
 
-   partition systemA {
+   partition system_a {
       in-partition-table = true
       image = systemA.ext4
       partition-type-uuid = L
    }
 
-   partition systemB {
+   partition system_b {
       in-partition-table = true
       image = systemB.ext4
       partition-type-uuid = L

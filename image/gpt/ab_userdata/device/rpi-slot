@@ -1,0 +1,332 @@
+#!/bin/sh
+
+# This script is boot critical and must be compatible with minimal shell
+# environments such as klibc, and be as POSIX compliant as possible.
+
+
+err() {
+   msg="ERROR: $*"
+   if [ -w /dev/kmsg ]; then
+      echo "$msg" > /dev/kmsg 2>/dev/null || :
+   fi
+   >&2 echo "$msg"
+}
+
+
+die (){
+   err "$@"
+   exit 1
+}
+
+prefix=disk/by-slot
+
+
+# mandatory tools
+command -v od > /dev/null 2>&1 || die "!od"
+command -v sed > /dev/null 2>&1 || die "!sed"
+command -v blkid > /dev/null 2>&1 || die "!blkid"
+command -v lsblk > /dev/null 2>&1 || die "!lsblk"
+
+
+usage()
+{
+cat <<-EOF >&2
+Usage
+  $(basename "$0") [-f|-u|-t][-m] [arg]
+Slot delegation helper for AB systems
+
+Write out slot information for the given argument based on option specifiers.
+If provided, the arg is a filesystem UUID. Options dictate what is written to
+stdout. If no arg is provided, the current boot configuration is assumed.
+
+  [-f] fully qualified device node path
+  [-u] udev - output suitable for udev rules (SLOT=<val>)
+  [-t] tryboot fragment - output suitable for autoboot.txt
+  [-m] matching partition in same slot
+EOF
+}
+
+
+fqname=0
+match=0
+tryboot=0
+udev=0
+
+while getopts "fmtu" opt; do
+   case $opt in
+      f)
+         fqname=1
+         shift $((OPTIND - 1))
+         ;;
+      m)
+         match=1
+         shift $((OPTIND - 1))
+         ;;
+      t)
+         tryboot=1
+         shift $((OPTIND - 1))
+         ;;
+      u)
+         udev=1
+         shift $((OPTIND - 1))
+         ;;
+      ?|*)
+         usage ; exit 1
+         ;;
+   esac
+done
+arg="$1"
+
+nopt=$((fqname + udev + tryboot))
+if [ "$nopt" -gt 1 ] ; then die "only one of -f,-u,-t supported" ; fi
+
+
+# https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#BOOT_ORDER
+_BOOT_MODE=$(od -An -tx1 /proc/device-tree/chosen/bootloader/boot-mode | sed 's/[^0-9a-fA-F]//g')
+_BOOT_PARTN=$(od -An -tx1 /proc/device-tree/chosen/bootloader/partition | sed 's/[^0-9a-fA-F]//g')
+BOOT_MODE=$(printf "%d" "$_BOOT_MODE")
+BOOT_PARTN=$(printf "%d" "$_BOOT_PARTN")
+
+
+case $BOOT_MODE in
+   1) BOOT_DEV=mmcblk0 ;;
+   6) BOOT_DEV=nvme0n1 ;;
+   *) die "unsupported bootmode $BOOT_MODE" ;;
+esac
+
+
+# Set boot block device
+test -e "/sys/class/block/$BOOT_DEV" || die "No such base blockdev $BOOT_DEV"
+test -e "/sys/class/block/${BOOT_DEV}p${BOOT_PARTN}" || die "No such boot blockdev ${BOOT_DEV}p${BOOT_PARTN}"
+BOOT_BLKDEV="/dev/${BOOT_DEV}p${BOOT_PARTN}"
+test -b "$BOOT_BLKDEV" || die "Invalid boot blkdev $BOOT_BLKDEV"
+
+
+# Process this incoming device
+INDEV="${arg:-$BOOT_BLKDEV}"
+
+
+# Probe device and obtain block level info
+get_device_info() {
+   _device="$1"
+   [ -n "$_device" ] || die "Device required"
+    
+   _info=$(lsblk -no NAME,TYPE,KNAME,PKNAME -r "$_device" 2>/dev/null) || \
+       die "No blk info for $_device"
+    
+   # shellcheck disable=SC2086
+   set -- $_info
+   # shellcheck disable=SC2034
+   DEV_NAME="$1"
+   # shellcheck disable=SC2034
+   DEV_TYPE="$2"
+   DEV_KNAME="$3"
+   DEV_PKNAME="${4:-}"  # May be empty for some devices
+   # shellcheck disable=SC2034
+   DEV_PATH="$_device"
+}
+
+
+# Establish if a block device lives on our boot device
+on_bootdev() {
+   _boot_kname="$2"
+
+   [ -n "$1" ] && [ -n "$_boot_kname" ] || return 1
+
+   get_device_info "$1"
+
+   # Base match
+   [ "$DEV_KNAME" = "$_boot_kname" ] && return 0
+
+   # Walk down for DM stacks: follow slaves of current kernel device
+   for s in /sys/class/block/"$DEV_KNAME"/slaves/*; do
+      [ -e "$s" ] || break
+      on_bootdev "/dev/${s##*/}" "$_boot_kname" && return 0
+   done
+
+   # Walk up when there is a parent kernel device (partitions, dm children)
+   if [ -n "$DEV_PKNAME" ]; then
+      [ "$DEV_PKNAME" = "$_boot_kname" ] && return 0
+         on_bootdev "/dev/$DEV_PKNAME" "$_boot_kname" && return 0
+   fi
+
+   return 1
+}
+
+
+# Global GPT labels - empty when using static map
+GPT_BOOT_LABEL=
+GPT_SYSTEM_LABEL=
+GPT_ALT_BOOT_LABEL=
+GPT_ALT_SYSTEM_LABEL=
+USE_STATIC=0
+
+
+# Global slot map block device identifiers
+: "${ACTIVE_BOOT_BLKDEV:=}"
+: "${ACTIVE_SYSTEM_BLKDEV:=}"
+: "${ALT_BOOT_BLKDEV:=}"
+: "${ALT_SYSTEM_BLKDEV:=}"
+
+
+# Use a static mapping to set all slot map blk dev identifiers
+load_static_map() {
+   # TODO - ro vfat mount p1 on BOOT_DEV and read map file
+   die "TODO - set slot variables"
+   # set
+   # ACTIVE_BOOT_BLKDEV
+   # ACTIVE_SYSTEM_BLKDEV
+   # ALT_BOOT_BLKDEV
+   # ALT_SYSTEM_BLKDEV
+}
+
+
+# Build expected slot labels from boot GPT label if present, else use static
+establish_slot_map() {
+   _boot_dev="$1"
+
+   _label=$(blkid -s PARTLABEL -o value "$_boot_dev" 2>/dev/null)
+   case "$_label" in
+       active=*) _label=${_label#active=} ;;
+   esac
+
+   if [ -n "$_label" ]; then
+      case "$_label" in
+         boot*_a|boot-a|boota|boota*)
+            _suffix="${_label#boot}"; _alt_suffix="${_suffix%a}b" ;;
+         boot*_b|boot-b|bootb|bootb*)
+            _suffix="${_label#boot}"; _alt_suffix="${_suffix%b}a" ;;
+         *) _label="";;
+      esac
+   fi
+
+   if [ -n "$_label" ]; then
+      GPT_BOOT_LABEL="boot${_suffix}"
+      GPT_SYSTEM_LABEL="system${_suffix}"
+      GPT_ALT_BOOT_LABEL="boot${_alt_suffix}"
+      GPT_ALT_SYSTEM_LABEL="system${_alt_suffix}"
+      USE_STATIC=0
+      return 0
+   fi
+
+   USE_STATIC=1
+   load_static_map
+   return 0
+}
+
+
+# Set slot map identifier from GPT label
+assign_by_label() {
+   _dev="$1"
+   _lbl=$(blkid -s PARTLABEL -o value "$_dev" 2>/dev/null)
+   [ -n "$_lbl" ] || return 1
+   case "$_lbl" in
+      "$GPT_BOOT_LABEL")       ACTIVE_BOOT_BLKDEV="$_dev"; return 0 ;;
+      "$GPT_SYSTEM_LABEL")     ACTIVE_SYSTEM_BLKDEV="$_dev"; return 0 ;;
+      "$GPT_ALT_BOOT_LABEL")   ALT_BOOT_BLKDEV="$_dev"; return 0 ;;
+      "$GPT_ALT_SYSTEM_LABEL") ALT_SYSTEM_BLKDEV="$_dev"; return 0 ;;
+      *) return 1 ;;
+   esac
+}
+
+
+assign_by_static() {
+   case "$1" in
+      "$ACTIVE_BOOT_BLKDEV"|\
+      "$ACTIVE_SYSTEM_BLKDEV"|\
+      "$ALT_BOOT_BLKDEV"|\
+      "$ALT_SYSTEM_BLKDEV")
+         return 0 ;;
+      *) return 1 ;;
+   esac
+}
+
+
+# Process a fully qualified device node path
+process_incoming_device() {
+   _indev="$1"
+
+   # Must live on the boot disk
+   if ! on_bootdev "$_indev" "$BOOT_DEV"; then
+      die "[Boot:${BOOT_DEV}] No slot association for $_indev"
+   fi
+
+   # ..and be of the expected device type
+   case "$DEV_TYPE" in
+      part) true ;;
+      *) die "[Boot:${BOOT_DEV}] Unsupported type $DEV_TYPE for $_indev" ;;
+   esac
+
+   if [ "${USE_STATIC:-0}" -eq 0 ]; then
+      # GPT mode: classify by PARTLABEL against expected labels
+      assign_by_label "$_indev" \
+         || die "Unrecognised GPT-labeled slot member: $_indev"
+   else
+      # Static mode: classify via static mapping
+      assign_by_static "$_indev" \
+         || die "Unrecognised static slot member: $_indev"
+   fi
+}
+
+
+# Gather boot device attributes
+BOOT_UUID=$(blkid -s UUID -o value "$BOOT_BLKDEV" 2>/dev/null)
+BOOT_PARTLABEL=$(blkid -s PARTLABEL -o value "$BOOT_BLKDEV" 2>/dev/null)
+
+
+# No opts and arg shows boot device info only
+if [ "$nopt" -eq 0 ] && [ -z "$arg" ] ; then
+   echo "boot:${BOOT_MODE}:${BOOT_PARTN}"
+   echo "blk:${BOOT_BLKDEV}:${BOOT_UUID}:${BOOT_PARTLABEL}"
+   exit 0
+fi
+
+
+# Build slot map and process the incoming device
+establish_slot_map "$BOOT_BLKDEV" || die "Failed to establish slot map"
+process_incoming_device "$INDEV"
+
+unset SLOT
+
+case "$INDEV" in
+   "$ACTIVE_BOOT_BLKDEV") SLOT="active/boot" ;;
+   "$ACTIVE_SYSTEM_BLKDEV") SLOT="active/system" ;;
+   "$ALT_BOOT_BLKDEV") SLOT="other/boot" ;;
+   "$ALT_SYSTEM_BLKDEV") SLOT="other/system" ;;
+   *) ;;
+esac
+
+[ -z "${SLOT+x}" ] && die "Device failed validation $INDEV" # bug
+
+
+# Post-process slot based on opts
+if [ $match -eq 1 ] ; then SLOT=$(echo "$SLOT" | sed -e 's|boot|system|;t' -e 's|system|boot|') ; fi
+
+if [ $fqname -eq 1 ] ; then
+   SLOT="/dev/${prefix}/${SLOT}"
+
+elif [ $udev -eq 1 ] ; then
+   SLOT="SLOT=${prefix}/${SLOT}"
+
+elif [ $tryboot -eq 1 ] ; then
+   case "$BOOT_BLKDEV" in
+      "$ACTIVE_BOOT_BLKDEV") bootpart_alt=$(echo "$ALT_BOOT_BLKDEV" | sed 's/.*p\([0-9][0-9]*\)$/\1/') ;;
+      "$ALT_BOOT_BLKDEV") bootpart_alt=$(echo "$ACTIVE_BOOT_BLKDEV" | sed 's/.*p\([0-9][0-9]*\)$/\1/') ;;
+      *) ;;
+   esac
+
+   cat << EOF
+[all]
+tryboot_a_b=1
+boot_partition=${BOOT_PARTN}
+[tryboot]
+boot_partition=${bootpart_alt}
+EOF
+   exit 0
+
+else
+   :
+fi
+
+echo "$SLOT"
+exit 0

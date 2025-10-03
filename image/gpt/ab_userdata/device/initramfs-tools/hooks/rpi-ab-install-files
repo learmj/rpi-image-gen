@@ -9,3 +9,4 @@ esac
 copy_exec /usr/bin/od
 copy_exec /usr/bin/sed
 copy_exec /usr/bin/rpi-slot
+copy_exec /usr/bin/lsblk

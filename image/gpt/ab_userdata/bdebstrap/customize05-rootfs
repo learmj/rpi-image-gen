@@ -2,8 +2,9 @@
 
 set -eu
 
-# Install slot rules
+# Install slot rules and helper
 install -m 0644 -D ../device/slot.rules $1/etc/udev/rules.d/90-rpi-slot.rules
+install -m 0755 -D ../device/rpi-slot $1/usr/bin/rpi-slot
 
 
 # Install provision map
@@ -37,11 +38,6 @@ sed -i \
    -e "s|<SYSTEMA_UUID>|$SYSTEMA_UUID|g" \
    -e "s|<SYSTEMB_UUID>|$SYSTEMB_UUID|g" \
    -e "s|<CRYPT_UUID>|$CRYPT_UUID|g" ${IGconf_image_outputdir}/provisionmap.json
-
-
-# Generate slot helper
-mkslot-helper ${IGconf_image_outputdir}/provisionmap.json > $1/usr/bin/rpi-slot
-chmod +x $1/usr/bin/rpi-slot
 
 
 # Hint to initramfs-tools we have an ext4 rootfs
