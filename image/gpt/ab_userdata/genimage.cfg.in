@@ -24,7 +24,7 @@ image system.sparse {
 
 image data.sparse {
    android-sparse {
-      image = data.ext4
+      image = persistent.ext4
    }
 }
 
@@ -68,9 +68,9 @@ image <IMAGE_NAME>.<IMAGE_SUFFIX> {
       partition-type-uuid = L
    }
 
-   partition data {
+   partition persistent {
       in-partition-table = true
-      image = data.ext4
+      image = persistent.ext4
       partition-type-uuid = L
    }
 }
@@ -106,13 +106,12 @@ image system.ext4 {
    exec-pre = "<SLOTP> SYSTEM"
 }
 
-image data.ext4 {
-   empty = true
+image persistent.ext4 {
    ext4 {
       use-mke2fs = true
-      label = "USERDATA"
+      label = "PERSISTENT"
       extraargs = "<MKE2FS_DATA>"
    }
-   size = <DATA_SIZE>
-   mountpoint = "/data"
+   mountpoint = "/persistent"
+   size = <PERSISTENT_SIZE>
 }

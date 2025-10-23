@@ -123,10 +123,9 @@
     <div class="header">
         <h1>image-rota</h1>
         <span class="badge">image</span>
-        <span class="badge">v3.1.0</span>
-        <p>Rotational OTA and AB support with GPT.
- This layout supports redundancy of boot and system slot components and
- provides a seperate user data partition.</p>
+        <span class="badge">v4.0.0</span>
+        <p>Immutable GPT A/B layout for rotational OTA updates,
+ boot/system redundancy, and a shared persistent data partition.</p>
     </div>
 
     
@@ -134,6 +133,165 @@
         <h2>Additional Documentation</h2>
         <div class="companion-content">
             <div class="sect1">
+<h2 id="_immutable_root_and_mount_points">Immutable root and mount points</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This system uses an A/B, read‑only root with all writable state on a single persistent partition.</p>
+</div>
+<table class="tableblock frame-all grid-all stripes-even stretch">
+<colgroup>
+<col style="width: 11.1111%;">
+<col style="width: 33.3333%;">
+<col style="width: 11.1111%;">
+<col style="width: 44.4445%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Mount point</th>
+<th class="tableblock halign-left valign-top">Backing</th>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/dev/disk/by-slot/active/system</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ext4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Read‑only system root (active slot A or B)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/boot/firmware</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/dev/disk/by-slot/active/boot</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vfat</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Boot files (active slot A or B)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/bootfs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">BOOTFS</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vfat</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Boot metadata</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/persistent</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PERSISTENT</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ext4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Shared persistent storage</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/var</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/persistent/slots/&lt;slot&gt;/var</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">bind</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per‑slot runtime state (systemd, caches, etc.)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/home</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/persistent/home</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">bind</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">User data shared across slots</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/var/log/journal</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/persistent/log/journal</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">bind</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Single log directory used by both slots</p></td>
+</tr>
+</tbody>
+</table>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Rationale (immutable root + A/B)</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p>Supports delta/incremental OTA updates by treating root as a static image.</p>
+</li>
+<li>
+<p>Reliable rollbacks: slot can be flipped if a new root fails health checks.</p>
+</li>
+<li>
+<p>Reduced write amplification and storage wear, clearer separation of state.</p>
+</li>
+<li>
+<p>Predictable per‑slot state in <code>/var</code>.</p>
+</li>
+<li>
+<p>Shared <code>/home</code> for slot agnostic user storage.</p>
+</li>
+<li>
+<p>Shared journalling: centralised point for device logging.</p>
+</li>
+<li>
+<p>Preserves SBOM accuracy: executing software matches the manifest exactly.</p>
+</li>
+<li>
+<p>Blocks on-device package installs, preventing SBOM drift.</p>
+</li>
+<li>
+<p>Enables auditable, reproducible releases and stronger supply-chain assurances.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Logging</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p>A single persistent journal directory at <code>/persistent/log/journal</code> stores logs from either slot.</p>
+</li>
+<li>
+<p>Journaling is configured for endurance and reliability.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Machine Identity (systemd)</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>/etc/machine-id</code> is synchronised early with <code>/persistent/common/etc/machine-id</code> using a oneshot unit.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Warning</div>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Slot partition GPT labels are mandatory to associate the immutable root with its matching persistent storage.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Root slots must have stable PARTLABELs: e.g. <code>system_a</code> and <code>system_b</code>.</p>
+</li>
+<li>
+<p>At boot, a generator reads the root slot’s <code>PARTLABEL</code> to select <code>/persistent/slots/&lt;slot&gt;/var</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If slot GPT labels are missing/duplicated, <code>/var</code> binding will fail.</p>
+</div>
+<div class="paragraph">
+<p>If slot GPT labels can’t be guaranteed, this layout is not suitable for your device.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_slot_selection_run_time">Slot Selection (run-time)</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -227,6 +385,7 @@
             <a href="image-base.html" class="dep-badge">image-base</a>
             <a href="device-base.html" class="dep-badge">device-base</a>
             <a href="rpi-ab-slot-mapper.html" class="dep-badge">rpi-ab-slot-mapper</a>
+            <a href="systemd-min.html" class="dep-badge">systemd-min</a>
         </div>
         
         
@@ -263,7 +422,7 @@
                 
                 <tr>
                     <td><code>IGconf_image_boot_part_size</code></td>
-                    <td>Boot partition size per slot.</td>
+                    <td>Boot partition size per-slot.</td>
                     <td>
                        
                            
@@ -279,7 +438,7 @@
                 
                 <tr>
                     <td><code>IGconf_image_system_part_size</code></td>
-                    <td>System partition size per slot.</td>
+                    <td>System partition size per-slot.</td>
                     <td>
                        
                            
@@ -295,11 +454,12 @@
                 
                 <tr>
                     <td><code>IGconf_image_data_part_size</code></td>
-                    <td>Data partition retained across rotations.</td>
+                    <td>Writable storage partition retained across
+ slot rotations.</td>
                     <td>
                        
                            
-                           <code>256M</code>
+                           <code>1G</code>
                            
                        
                     </td>
@@ -329,7 +489,8 @@
                     <td><code>IGconf_image_pmap</code></td>
                     <td>Provisioning Map type for this image layout.
  All partitions will be provisioned unencrypted (clear).
- System partitions will be provisioned encrypted (crypt).</td>
+ System partitions will be provisioned encrypted (crypt).
+ System B will be provisioned encrypted (hybrid). Development only.</td>
                     <td>
                        
                            

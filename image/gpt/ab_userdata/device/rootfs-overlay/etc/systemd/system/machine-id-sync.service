@@ -1,0 +1,16 @@
+[Unit]
+Description=Sync machine-id to/from persistent storage
+DefaultDependencies=no
+Requires=persistent.mount
+After=persistent.mount local-fs.target
+Before=basic.target
+ConditionPathExists=/run/machine-id
+ConditionPathExists=/persistent/common/etc
+RequiresMountsFor=/persistent/common/etc/machine-id
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -eu -c 'P=/persistent/common/etc/machine-id; R=/run/machine-id; if [ -s "$P" ]; then cat "$P" > "$R"; else /usr/bin/install -m0644 "$R" "$P"; fi'
+
+[Install]
+WantedBy=basic.target

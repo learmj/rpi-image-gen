@@ -1,0 +1,82 @@
+#!/bin/sh
+# systemd generator to bind per-slot /var based on GPT PARTLABEL
+
+set -eu
+
+OUT_DIR="/run/systemd/generator"
+PERSIST_LABEL="${PERSIST_LABEL:-PERSISTENT}"     # label of the shared persistent partition
+SLOT_FALLBACK="${SLOT_FALLBACK:-system_a}"       # default if auto-detect fails
+SLOT_CONF="/etc/slot.conf"                       # optional file with: SLOT=system_a|system_b
+
+mkdir -p "$OUT_DIR"
+
+# 1) Figure out the current slot
+SLOT=""
+# Optional override from config
+if [ -r "$SLOT_CONF" ]; then
+  SLOT="$(sed -n 's/^SLOT=\(system_[abAB]\)$/\1/p' "$SLOT_CONF" | tr 'A-Z' 'a-z' || true)"
+fi
+
+if [ -z "${SLOT:-}" ]; then
+  ROOT_DEV="$(findmnt -no SOURCE / || true)"
+  if [ -n "$ROOT_DEV" ]; then
+    # Resolve to the underlying physical partition if we're on mapper
+    if command -v lsblk >/dev/null 2>&1; then
+      PKNAME="$(lsblk -no PKNAME "$ROOT_DEV" 2>/dev/null || true)"
+      [ -n "$PKNAME" ] && PART_DEV="/dev/$PKNAME" || PART_DEV="$ROOT_DEV"
+    else
+      PART_DEV="$ROOT_DEV"
+    fi
+    PARTLABEL="$(blkid -s PARTLABEL -o value "$PART_DEV" 2>/dev/null || true)"
+    case "$(printf '%s' "$PARTLABEL" | tr 'A-Z' 'a-z')" in
+      system_a) SLOT="system_a" ;;
+      system_b) SLOT="system_b" ;;
+    esac
+  fi
+fi
+
+[ -n "${SLOT:-}" ] || SLOT="$SLOT_FALLBACK"
+
+VAR_SRC="/persistent/slots/${SLOT}/var"
+
+# 2) Emit persistent.mount (mount the shared persistent partition by label)
+#
+# Mount with:
+# noatime: avoids atime writes entirely (better than relatime)
+# lazytime: defer inode timestamps to memory, flushed with fsync/mtime changes / 24h.
+# commit=60: batches journal commits (fewer writes, risk up to 60s metadata loss on power loss).
+# errors=remount-ro: safer failure mode
+cat >"$OUT_DIR/persistent.mount" <<EOF
+[Unit]
+Description=Persistent data partition
+Before=local-fs.target
+Conflicts=umount.target
+
+[Mount]
+What=/dev/disk/by-label/${PERSIST_LABEL}
+Where=/persistent
+Type=ext4
+Options=rw,noatime,lazytime,commit=60,errors=remount-ro
+
+[Install]
+WantedBy=local-fs.target
+EOF
+
+# 3) Emit var.mount (bind per-slot /var)
+cat >"$OUT_DIR/var.mount" <<EOF
+[Unit]
+Description=Per-slot /var for ${SLOT}
+Requires=persistent.mount
+After=persistent.mount
+Before=local-fs.target
+ConditionPathExists=${VAR_SRC}
+
+[Mount]
+What=${VAR_SRC}
+Where=/var
+Type=none
+Options=bind
+
+[Install]
+WantedBy=local-fs.target
+EOF

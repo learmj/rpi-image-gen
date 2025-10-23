@@ -49,7 +49,7 @@ cat genimage.cfg.in | sed \
    -e "s|<IMAGE_SUFFIX>|$IGconf_image_suffix|g" \
    -e "s|<BOOT_SIZE>|$IGconf_image_boot_part_size|g" \
    -e "s|<SYSTEM_SIZE>|$IGconf_image_system_part_size|g" \
-   -e "s|<DATA_SIZE>|$IGconf_image_data_part_size|g" \
+   -e "s|<PERSISTENT_SIZE>|$IGconf_image_data_part_size|g" \
    -e "s|<SECTOR_SIZE>|$IGconf_device_sector_size|g" \
    -e "s|<SLOTP>|'$(readlink -ef slot-post-process.sh)'|g" \
    -e "s|<BOOT_LABEL>|$BOOT_LABEL|g" \
@@ -58,3 +58,90 @@ cat genimage.cfg.in | sed \
    -e "s|<MKE2FS_SYSTEM>|$MKE2FS_ARGS_SYSTEM|g" \
    -e "s|<MKE2FS_DATA>|$MKE2FS_ARGS_DATA|g" \
    > ${genimg_in}/genimage.cfg
+
+
+# Create persistent skeleton - must match part names in genimage.cfg.in
+mkdir -p ${fs}/persistent/slots/system_a/var
+mkdir -p ${fs}/persistent/slots/system_b/var
+mkdir -p ${fs}/persistent/common/etc
+
+install -d -m 1777 ${fs}/persistent/slots/system_a/var/tmp
+install -d -m 1777 ${fs}/persistent/slots/system_b/var/tmp
+
+
+# machine-id(5)
+wants_dir="${fs}/etc/systemd/system/sysinit.target.wants"
+units=(
+  "machine-id-sync.service"
+)
+install -d -m 0755 "${wants_dir}"
+for unit in "${units[@]}"; do
+  [ -f "${fs}/etc/systemd/system/${unit}" ] || die "missing ${unit}"
+  chmod 0644 "${fs}/etc/systemd/system/${unit}"
+  ln -sf "../${unit}" "${wants_dir}/${unit}"
+done
+
+# Ensure we start with an empty file, add entry for legacy dbus
+rm -f "${fs}/etc/machine-id"
+rm -f "${fs}/var/lib/dbus/machine-id"
+install -m0644 -o root -g root /dev/null "${fs}/etc/machine-id"
+ln -s /etc/machine-id "${fs}/var/lib/dbus/machine-id"
+
+
+# /var is per-slot, so synchronise
+rsync -aHAXS --numeric-ids --delete "${fs}/var/" "${fs}/persistent/slots/system_a/var/"
+rsync -aHAXS --numeric-ids --delete "${fs}/var/" "${fs}/persistent/slots/system_b/var/"
+
+
+# Journal is retained across slot rotations
+install -d -m 2755 -o root -g systemd-journal "${fs}/persistent/log/journal"
+# set preferences
+install -d -m 0755 ${fs}/etc/systemd/journald.conf.d
+cat > ${fs}/etc/systemd/journald.conf.d/persistent.conf <<'EOF'
+[Journal]
+Storage=persistent
+
+# Reduce space
+Compress=yes
+
+# Lower disk budget
+SystemMaxUse=512M
+SystemKeepFree=15%
+SystemMaxFileSize=20M
+
+# Endurance profile
+SyncIntervalSec=1m
+RateLimitInterval=30s
+RateLimitBurst=2000
+
+# Integrity
+Seal=yes
+EOF
+
+
+# /home is bind mounted to /persistent/home and retained across slot rotations
+# Mirror it
+mkdir -p "${fs}/persistent/home/"
+rsync -aHAXS --numeric-ids --delete "${fs}/home/" "${fs}/persistent/home/"
+
+# Reclaim /home
+find "${fs}/home" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+
+# Reclaim /var but ensure skeleton exists for services that need PrivateTmp
+# otherwise namespace setup will fail on the immutable root.
+find "${fs}/var" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+install -d -m 1777 ${fs}/var/tmp
+install -d -m 0755 ${fs}/var/log
+install -d -m 0755 ${fs}/var/cache
+install -d -m 0755 ${fs}/var/spool
+
+# Perms for bind mounts on the immutable root
+chmod 755 "${fs}/home"
+chmod 755 "${fs}/var"
+
+
+# Generate the persistent skeleton suitable for on-device overlay
+tar --xattrs --xattrs-include='*' --acls --numeric-owner \
+   -C "${fs}/persistent" \
+   -czf "${genimg_in}/persistent-skel.tar.gz" \
+   --exclude='lost+found' .
