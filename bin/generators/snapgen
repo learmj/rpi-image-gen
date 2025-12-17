@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -eu
+
+: "${IGTOP:?not set}"
+
+#in="${1:?input layer}"
+#out="${2:?output file}"
+tmpdir="$(mktemp -d)"
+
+declare -A snaps=(
+   ["<TRIXIE_SNAP>"]="$IGTOP/templates/debian/apt/trixie-snap.sources"
+)
+
+declare -A repl
+for s in "${!snaps[@]}"; do
+   src="${snaps[$s]}"
+   [[ -f "$src" ]] || { echo "Missing $src for $s" >&2; exit 1; }
+   dest="${tmpdir}/$(basename "$src")"
+   envcp "$src" "$dest"   # resolve placeholders with generator
+   repl["$s"]="$dest"     # keep in intermediate tmp dir
+done
+
+cmd=(sed)
+for r in "${!repl[@]}"; do
+   cmd+=(-e "s|$r|${repl[$r]}|g")
+done
+
+"${cmd[@]}" "$1" > "$2"

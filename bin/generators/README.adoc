@@ -8,13 +8,18 @@ Helper scripts in this directory are invoked by the layer manager when a layer d
 
 [cols="1,4,4", options="header"]
 |===
-| Script | Purpose   | Notes
-| envcp  | `<PLACEHOLDER>` replacement using environment variables | If `DEBIAN_SNAPSHOT_TS` is unset, `<SNAPSHOT>` is derived from the current UTC time.
+| Script    | Purpose   | Notes
+| envcp     | `<PLACEHOLDER>` substitution using standard environment variables | See below
+| mirrorgen | `<PLACEHOLDER>` substitution using mirror specific variables | DEB822 URIs
+| snapgen   | `<PLACEHOLDER>` substitution using snapshot mirror specific variables | DEB822 URIs
 |===
 
+== envcp
 
-== Adding New Generators
+=== SOURCE_DATE_EPOCH
 
-1. Drop the executable script in this directory.
-2. Document it in the table above.
+If set, derive `<SNAPSHOT_ISO8601>` from this variable, else from the current UTC time. This variable won’t influence apt’s downloads from 'rolling' repositories - it’s useful only for formatting a snapshot timestamp (eg, for use with snapshot.debian.org). See https://reproducible-builds.org/docs/source-date-epoch/[SOURCE_DATE_EPOCH,window=_blank].
 
+== mirrorgen and snapgen
+
+These two generators replace defined placeholders with file paths corresponding to repository mirrors in DEB822 format. `mirrorgen` is used for 'rolling' repositories, while 'snapgen' is used for snapshot repositories. Refer to each script for their supported placeholders.

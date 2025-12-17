@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -eu
+
+: "${IGTOP:?not set}"
+
+# Supported mirrors and their associated DEB822 specs
+declare -A map=(
+  ["<TRIXIE>"]="$IGTOP/templates/debian/apt/trixie.sources"
+  ["<TRIXIE_RPI>"]="$IGTOP/templates/debian/apt/rpi-trixie.sources"
+  ["<BOOKWORM>"]="$IGTOP/templates/debian/apt/bookworm.sources"
+  ["<BOOKWORM_RPI>"]="$IGTOP/templates/debian/apt/rpi-bookworm.sources"
+)
+
+for p in "${!map[@]}"; do
+  [[ -f ${map[$p]} ]] || { echo "Missing ${map[$p]} for $p" >&2; exit 1; }
+done
+
+cmd=(sed)
+for p in "${!map[@]}"; do
+  cmd+=(-e "s|${p}|${map[$p]}|g")
+done
+
+"${cmd[@]}" "$1" > "$2"

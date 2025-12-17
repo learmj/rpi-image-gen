@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -eu
 
-if [[ -n ${DEBIAN_SNAPSHOT_TS:-} ]]; then
-   snapshot=$(date -u -d @"$DEBIAN_SNAPSHOT_TS" +%Y%m%dT%H%M%SZ)
+# ISO 8601 is the international standard for date/time formats, typically
+# represented as YYYY-MM-DDTHH:MM:SSZ for UTC times (eg, 2025-12-17T10:34:56Z).
+# YYYYMMDDTHHMMSSZ is a compact ISO 8601-style UTC timestamp and is supported
+# by snapshot.debian.org
+if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
+   snapshot=$(date -u -d @"$SOURCE_DATE_EPOCH" +%Y%m%dT%H%M%SZ)
 else
    snapshot=$(date -u +%Y%m%dT%H%M%SZ)
 fi
 
 cat "$1" | sed \
-   -e "s|<SNAPSHOT>|$snapshot|g" \
+   -e "s|<SNAPSHOT_ISO8601>|$snapshot|g" \
    > "$2"
