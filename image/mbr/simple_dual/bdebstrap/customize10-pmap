@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -eu
+
+# Install provision map
+if [ -n "${IGconf_image_pmap:-}" ]; then
+   cp ../device/provisionmap-${IGconf_image_pmap}.json ${IGconf_image_outputdir}/provisionmap.json
+fi
+
+# Generate pre-defined UUIDs
+BOOT_LABEL=$(uuidgen | sed 's/-.*//' | tr 'a-f' 'A-F')
+BOOT_UUID=$(echo "$BOOT_LABEL" | sed 's/^\(....\)\(....\)$/\1-\2/')
+ROOT_UUID=$(uuidgen)
+CRYPT_UUID=$(uuidgen)
+
+rm -f ${IGconf_image_outputdir}/img_uuids
+for v in BOOT_LABEL BOOT_UUID ROOT_UUID CRYPT_UUID; do
+    eval "val=\$$v"
+    echo "$v=$val" >> "${IGconf_image_outputdir}/img_uuids"
+done
+
+# Populate PMAP UUIDs
+sed -i \
+   -e "s|<BOOT_UUID>|$BOOT_UUID|g" \
+   -e "s|<ROOT_UUID>|$ROOT_UUID|g" \
+   -e "s|<CRYPT_UUID>|$CRYPT_UUID|g" ${IGconf_image_outputdir}/provisionmap.json

@@ -197,6 +197,40 @@ def slotvars(data):
 
 
 
+def cryptvars(data):
+    # Walk the PMAP and emit LUKS2 mapper metadata
+    containers = []
+    seen = set()
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            enc = obj.get("encrypted")
+            if isinstance(enc, dict):
+                luks2 = enc.get("luks2")
+                if isinstance(luks2, dict):
+                    mname = luks2.get("mname")
+                    if isinstance(mname, str) and mname not in seen:
+                        seen.add(mname)
+                        containers.append(mname)
+                        print(f"{mname}_MNAME={mname}")
+                        uuid_val = luks2.get("uuid")
+                        if isinstance(uuid_val, str):
+                            print(f"{mname}_UUID={uuid_val}")
+            for value in obj.values():
+                walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+
+    walk(data)
+
+    if not containers:
+        sys.stderr.write("Error: No LUKS2 containers found\n")
+        sys.exit(1)
+
+    print(f"CONTAINERS=\"{' '.join(containers)}\"")
+
+
 # Best effort general purpose JSON key retrieval
 def get_key(data, key_path, default=None):
     keys = key_path.split('.')
@@ -241,6 +275,10 @@ if __name__ == '__main__':
                         action="store_true",
                         help="Print slot.map triplets")
 
+    parser.add_argument("-c", "--cryptvars",
+                        action="store_true",
+                        help="Print LUKS2 container variables")
+
     parser.add_argument("--get-key",
                         help="Dot-separated key path to retrieve from PMAP JSON")
 
@@ -262,6 +300,14 @@ if __name__ == '__main__':
         else:
             print(value)
             sys.exit(0)
+
+    if args.cryptvars:
+        pmap = data if isinstance(data, list) else get_key(data, "layout.provisionmap")
+        if pmap is None:
+            sys.stderr.write("Error: layout.provisionmap not found in JSON.\n")
+            sys.exit(1)
+        cryptvars(pmap)
+        sys.exit(0)
 
     if args.slotvars:
         pmap = data if isinstance(data, list) else get_key(data, "layout.provisionmap")
