@@ -18,7 +18,7 @@ image boot.sparse {
 
 image system.sparse {
    android-sparse {
-      image = system.ext4
+      image = system.erofs
    }
 }
 
@@ -58,13 +58,13 @@ image <IMAGE_NAME>.<IMAGE_SUFFIX> {
 
    partition system_a {
       in-partition-table = true
-      image = system.ext4
+      image = system.erofs
       partition-type-uuid = L
    }
 
    partition system_b {
       in-partition-table = true
-      image = system.ext4
+      image = system.erofs
       partition-type-uuid = L
    }
 
@@ -100,6 +100,15 @@ image system.ext4 {
       mke2fs-conf = <MKE2FS_CONF>
       label = "SYSTEM"
       extraargs = "<MKE2FS_SYSTEM>"
+   }
+   size = <SYSTEM_SIZE>
+   mountpoint = "/"
+   exec-pre = "<SLOTP> SYSTEM"
+}
+
+image system.erofs {
+   erofs {
+      extraargs = "<MKEROFS_SYSTEM>"
    }
    size = <SYSTEM_SIZE>
    mountpoint = "/"
