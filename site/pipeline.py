@@ -166,6 +166,7 @@ def _collect_variable_definitions(manager: LayerManager, build_order: List[str])
                 source_layer=layer_name,
                 position=position,
                 anchor_name=env_var.anchor_name,
+                triggers=getattr(env_var, "triggers", []),
             )
             variable_definitions.setdefault(var_name, []).append(var_with_position)
     return variable_definitions

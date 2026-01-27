@@ -2,8 +2,9 @@ import os
 import argparse
 import yaml
 from debian import deb822
+from typing import Dict
 from validators import parse_validator
-from env_types import EnvVariable, EnvLayer, MetadataContainer, XEnv
+from env_types import EnvVariable, EnvLayer, MetadataContainer, XEnv, VariableResolver
 from logger import log_error
 
 
@@ -109,6 +110,7 @@ SUPPORTED_FIELD_PATTERNS = {
     XEnv.var_valid_pattern(): {"type": "pattern", "description": "Variable validation rule"},
     XEnv.var_set_pattern(): {"type": "pattern", "description": "Whether to auto-set variable"},
     XEnv.var_anchor_pattern(): {"type": "pattern", "description": "Anchor mapping for environment variable"},
+    f"{XEnv.VAR_PREFIX}*-Triggers": {"type": "pattern", "description": "Trigger rules to set other variables when this variable matches a value"},
 
     # Variable requirements (any environment variables)
     XEnv.var_requires(): {"type": "single", "description": "Environment variables required by this layer"},
@@ -158,6 +160,7 @@ class Metadata:
 
     def __init__(self, filepath, doc_mode: bool = False):
         self.filepath = filepath
+        self._resolved_vars = None
         raw_metadata = self._load_metadata(filepath)
 
         # Create the container (applies placeholder substitutions internally)
@@ -746,17 +749,31 @@ class Metadata:
         if self._container.variables and not self._container.var_prefix:
             raise ValueError("Cannot process variables: X-Env-Var-* fields are defined but X-Env-VarPrefix is missing. Environment variables require a valid prefix.")
 
-        for var_name, env_var in self._container.variables.items():
-            current_value = os.environ.get(var_name)
+        resolver = VariableResolver()
+        variable_definitions = {name: [env_var] for name, env_var in self._container.variables.items()}
+        resolved_vars = resolver.resolve(variable_definitions)
+        self._resolved_vars = resolved_vars
 
-            if env_var.set_policy == "skip":
+        ordered_vars = sorted(resolved_vars.values(), key=lambda env_var: env_var.position)
+
+        for env_var in ordered_vars:
+            var_name = env_var.name
+            current_value = os.environ.get(var_name)
+            policy = env_var.set_policy
+
+            if policy == "already_set":
+                results[var_name] = {
+                    "status": "already_set",
+                    "value": current_value,
+                    "reason": "already in environment"
+                }
+            elif policy == "skip":
                 results[var_name] = {
                     "status": "no_set_policy",
                     "value": None,
                     "reason": "marked as Set: false/skip"
                 }
-            elif env_var.set_policy == "force":
-                # Always overwrite, but skip if empty and rule allows unset
+            elif policy == "force":
                 if env_var.validator and hasattr(env_var.validator, 'allow_unset') and env_var.validator.allow_unset and not env_var.value.strip():
                     results[var_name] = {
                         "status": "no_set_policy",
@@ -770,7 +787,7 @@ class Metadata:
                         "value": env_var.value,
                         "reason": "Set: force override"
                     }
-            elif env_var.set_policy == "immediate":
+            elif policy == "immediate":
                 if current_value is None:
                     os.environ[var_name] = env_var.value
                     results[var_name] = {
@@ -784,8 +801,7 @@ class Metadata:
                         "value": current_value,
                         "reason": "already in environment"
                     }
-            elif env_var.set_policy == "lazy":
-                # For single-layer context, treat like immediate
+            elif policy == "lazy":
                 if current_value is None:
                     if env_var.validator and hasattr(env_var.validator, 'allow_unset') and env_var.validator.allow_unset and not env_var.value.strip():
                         results[var_name] = {
@@ -808,6 +824,12 @@ class Metadata:
                     }
 
         return results
+
+    def get_resolved_env_vars(self) -> Dict[str, EnvVariable]:
+        """Return the most recently resolved env vars (includes trigger injections)."""
+        if self._resolved_vars is not None:
+            return self._resolved_vars
+        return self._container.get_settable_variables()
 
     def get_layer_info(self):
         """Get layer management information from X-Env-Layer metadata fields"""
@@ -1034,7 +1056,8 @@ def _main(args):
             # Write key=value pairs to file if write_out is specified
             if hasattr(args, 'write_out') and args.write_out:
                 try:
-                    settable_vars = {name: var.value for name, var in meta._container.get_settable_variables().items()}
+                    resolved_vars = meta.get_resolved_env_vars()
+                    settable_vars = {name: var.value for name, var in resolved_vars.items() if var.should_set_in_environment()}
                     with open(args.write_out, 'w') as f:
                         for fullvar, default_value in settable_vars.items():
                             env_value = os.environ.get(fullvar, default_value)
