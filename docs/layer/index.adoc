@@ -207,6 +207,7 @@ Lint will fail on:
 Usage:
 
 * Target values are preserved as literals with no expansion.
+* Triggers are accumulated from all definitions of a variable across layers. Even if a consumer (downstream) layer overrides a variable’s value from a base layer (upstream), triggers declared upstream still apply to the resolved downstream value (inherited). Suppression of upstream triggers is not supported.
 
 ==== Supported actions
 

@@ -778,20 +778,55 @@ class VariableResolver:
         for var_name, definitions, _ in all_vars:
             resolved_var = self._resolve_single_variable(var_name, definitions)
             if resolved_var:
+                # Merge triggers from all definitions so upstream triggers are preserved
+                seen = set()
+                merged_triggers: List[TriggerRule] = []
+                for d in definitions:
+                    for trig in getattr(d, "triggers", []) or []:
+                        key = (
+                            trig.condition,
+                            trig.action,
+                            trig.target,
+                            trig.value,
+                            trig.policy,
+                        )
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        merged_triggers.append(trig)
+                if merged_triggers:
+                    resolved_var.triggers = merged_triggers
                 resolved[var_name] = resolved_var
             elif var_name in os.environ:
-                # Variable is in environment - create a special entry for skip message
-                # Use the first definition for source layer info
+                # Variable is in environment - keep triggers so they can still fire
                 first_def = definitions[0]
+                seen = set()
+                merged_triggers: List[TriggerRule] = []
+                for d in definitions:
+                    for trig in getattr(d, "triggers", []) or []:
+                        key = (
+                            trig.condition,
+                            trig.action,
+                            trig.target,
+                            trig.value,
+                            trig.policy,
+                        )
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        merged_triggers.append(trig)
                 env_var = EnvVariable(
                     name=var_name,
                     value=os.environ[var_name],
                     description=first_def.description,
                     required=first_def.required,
                     validator=first_def.validator,
-                    set_policy="already_set",  # Special policy for environment variables
+                    validation_rule=getattr(first_def, "validation_rule", ""),
+                    set_policy="already_set",
                     source_layer=first_def.source_layer,
-                    position=first_def.position
+                    position=first_def.position,
+                    anchor_name=first_def.anchor_name,
+                    triggers=merged_triggers,
                 )
                 resolved[var_name] = env_var
 
