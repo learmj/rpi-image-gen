@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 import yaml
 from debian import deb822
@@ -1056,20 +1057,18 @@ def print_env_var_descriptions(meta: 'Metadata', indent: int = 0):
         return
 
     pad = " " * indent
+    use_colour = sys.stdout.isatty()
+    bold = "\033[1m" if use_colour else ""
+    reset = "\033[0m" if use_colour else ""
+
     print(f"{pad}Environment Variables:")
 
-    # Display the variable prefix if it exists
     if meta._container.var_prefix:
         print(f"{pad}  Variable Prefix: {meta._container.var_prefix}")
     print()
 
-    # Fetch from the container
     for var_name, env_var in meta._container.variables.items():
-        var_short_name = var_name.split('_')[-1].upper()  # Extract short name
-
-        #print(f"{pad}  Variable: {var_short_name}")
-        BOLD="\033[1m"; RESET="\033[0m"
-        print(f"{pad}  Variable: {BOLD}{var_name}{RESET}")
+        print(f"{pad}  Variable: {bold}{var_name}{reset}")
         print(f"{pad}    Default Value: {env_var.value}")
         if env_var.description:
             print(f"{pad}    Description: {env_var.description}")
@@ -1080,6 +1079,13 @@ def print_env_var_descriptions(meta: 'Metadata', indent: int = 0):
             description = env_var.get_validation_description()
             print(f"{pad}    Validation: {rule_display} [{description}]")
         print(f"{pad}    Set Policy: {env_var.set_policy}")
+        if env_var.triggers:
+            print(f"{pad}    Triggers:")
+            for t in env_var.triggers:
+                cond = f"when={t.condition} " if t.condition else ""
+                print(f"{pad}      {cond}{t.action} {t.target}={t.value} policy={t.policy}")
+        if env_var.conflicts:
+            print(f"{pad}    Conflicts: {', '.join(env_var.conflicts)}")
         print()
 
 
@@ -1095,6 +1101,7 @@ def _generate_boilerplate():
 #
 # X-Env-Layer-Requires:
 # X-Env-Layer-Conflicts:
+# X-Env-Layer-Sets:
 #
 # X-Env-VarPrefix: my
 #
@@ -1392,45 +1399,23 @@ def _main(args):
     elif command == "describe":
         try:
             if not varname:
-                # Show all information when no specific variable requested
                 has_content = False
+                raw = meta.get_metadata()
 
-                # Check and display layer information
-                layer_info = meta.get_layer_info()
-                if layer_info:
-                    print("Layer Information:")
-                    print(f"  Name: {layer_info['name']}")
-                    print(f"  Version: {layer_info['version']}")
-                    print(f"  Category: {layer_info['category']}")
+                print(f"  File: {path}")
 
-                    if layer_info['description']:
-                        print(f"  Description: {layer_info['description']}")
+                for field, info in SUPPORTED_FIELD_PATTERNS.items():
+                    if info["type"] != "single":
+                        continue
+                    value = raw.get(field, "")
+                    label = field.removeprefix("X-Env-").replace("-", " ")
+                    print(f"  {label}: {value or '-'}")
+                has_content = bool(raw)
 
-                    deps = ', '.join(layer_info['depends']) if layer_info['depends'] else 'none'
-                    print(f"  Required Dependencies: {deps}")
-
-                    opt_deps = ', '.join(layer_info['optional_depends']) if layer_info['optional_depends'] else 'none'
-                    print(f"  Optional Dependencies: {opt_deps}")
-
-                    conflicts = ', '.join(layer_info['conflicts']) if layer_info['conflicts'] else 'none'
-                    print(f"  Conflicts: {conflicts}")
-
-                    print(f"  Filename: {layer_info['config_file']}")
-
-                    # Show required environment variables if any
-                    if meta._container.required_vars:
-                        req_vars = ', '.join(meta._container.required_vars)
-                        print(f"  Required Variables: {req_vars}")
-
-                    # Show optional environment variables if any
-                    if meta._container.optional_vars:
-                        opt_vars = ', '.join(meta._container.optional_vars)
-                        print(f"  Optional Variables: {opt_vars}")
-
+                if has_content:
                     print()
-                    has_content = True
 
-                # Display environment variables via helper
+                # Display per-variable detail via existing helper
                 if meta.get_all_env_vars():
                     print_env_var_descriptions(meta)
                     has_content = True
