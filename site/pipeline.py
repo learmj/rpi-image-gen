@@ -82,6 +82,15 @@ def _pipeline_main(args):
     if not _validate_layers(manager, build_order):
         raise SystemExit(1)
 
+    # Inject X-Env-Layer-Sets values before variable resolution so they
+    # are visible to triggers, conflicts, and downstream layers.
+    layer_sets = _collect_layer_sets(manager, build_order)
+    for key, value in layer_sets.items():
+        if key not in os.environ:
+            os.environ[key] = value
+            assignments[key] = value
+            _log_env_action("LSET", key, value, "layer-sets")
+
     try:
         applied_values = _apply_layers(manager, build_order)
     except ValueError as exc:
@@ -158,6 +167,21 @@ def _build_anchor_map_from_layers(manager: LayerManager, layers: List[str]) -> D
             if getattr(env_var, "anchor_name", None):
                 anchor_bindings.setdefault(env_var.anchor_name, env_var.name)
     return {anchor: {"var": var_name} for anchor, var_name in anchor_bindings.items()}
+
+
+def _collect_layer_sets(manager: LayerManager, build_order: List[str]) -> OrderedDict[str, str]:
+    """Collect X-Env-Layer-Sets values from all layers in build order.
+    Later layers override earlier ones for the same key."""
+    collected: OrderedDict[str, str] = OrderedDict()
+    for layer_name in build_order:
+        meta = manager.layers.get(layer_name)
+        if not meta:
+            continue
+        layer = meta._container.layer
+        if layer and layer.sets:
+            for key, value in layer.sets.items():
+                collected[key] = value
+    return collected
 
 
 def _collect_variable_definitions(manager: LayerManager, build_order: List[str]) -> Dict[str, List[EnvVariable]]:

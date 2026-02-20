@@ -1005,6 +1005,11 @@ def _layer_main(args):
                 requires_list = ', '.join(layer_info['provider_requires'])
                 print(f"Requires Provider: {requires_list}")
 
+            if layer_info.get('sets'):
+                sets = layer_info['sets']
+                pairs = ' '.join(f"{k}={v}" for k, v in sets.items())
+                print(f"Sets: {pairs}")
+
             layer_path = manager.layer_files.get(layer_name, "<unknown>")
             rel_layer_path = manager.layer_relpaths.get(layer_name, layer_path)
             print(f"Path: {rel_layer_path}")

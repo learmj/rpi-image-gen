@@ -218,6 +218,11 @@ class XEnv:
         return f"{cls.LAYER_PREFIX}Conflicts"
 
     @classmethod
+    def layer_sets(cls) -> str:
+        """Build layer sets field: X-Env-Layer-Sets"""
+        return f"{cls.LAYER_PREFIX}Sets"
+
+    @classmethod
     def is_layer_field(cls, field_name: str) -> bool:
         """Check if field name is an X-Env-Layer field."""
         return field_name.startswith(cls.LAYER_PREFIX)
@@ -517,7 +522,8 @@ class EnvLayer:
                  category: str = "general", deps: List[str] = None,
                  provides: List[str] = None, requires_provider: List[str] = None,
                  conflicts: List[str] = None, layer_type: str = "static",
-                 generator: str = "", config_file: str = ""):
+                 generator: str = "", config_file: str = "",
+                 sets: Dict[str, str] = None):
         self.name = name
         self.description = description
         self.version = version
@@ -529,6 +535,7 @@ class EnvLayer:
         self.layer_type = layer_type
         self.generator = generator
         self.config_file = config_file
+        self.sets = sets or {}
 
     @classmethod
     def from_metadata_fields(cls, metadata_dict: Dict[str, str],
@@ -565,6 +572,9 @@ class EnvLayer:
         conflicts_str = metadata_dict.get(XEnv.layer_conflicts(), "")
         conflicts = cls._parse_dependency_list(conflicts_str, doc_mode)
 
+        sets_str = metadata_dict.get(XEnv.layer_sets(), "")
+        sets = cls._parse_sets(sets_str)
+
         # Infer config file from filepath if not provided
         import os
         config_file = os.path.basename(filepath) if filepath else f"{layer_name}.yaml"
@@ -580,7 +590,8 @@ class EnvLayer:
             conflicts=conflicts,
             layer_type=layer_type,
             generator=generator,
-            config_file=config_file
+            config_file=config_file,
+            sets=sets,
         )
 
     @staticmethod
@@ -609,6 +620,25 @@ class EnvLayer:
                     raise ValueError(f"Invalid dependency name '{dep_name}' - only alphanum, dash, underscore allowed")
                 deps.append(dep_name)
         return deps
+
+    @staticmethod
+    def _parse_sets(sets_str: str) -> Dict[str, str]:
+        """Parse 'KEY=VALUE KEY2=VALUE2 ...' into a dict."""
+        result: Dict[str, str] = {}
+        for token in sets_str.split():
+            if '=' not in token:
+                raise ValueError(
+                    f"Invalid Sets token '{token}' — expected KEY=VALUE"
+                )
+            key, value = token.split('=', 1)
+            if not key:
+                raise ValueError(f"Empty key in Sets token '{token}'")
+            if key.startswith("IGconf_"):
+                raise ValueError(
+                    f"Sets key '{key}' uses IGconf_ prefix — use X-Env-Var instead"
+                )
+            result[key] = value
+        return result
 
     @staticmethod
     def _evaluate_env_variables(text: str, doc_mode: bool = False) -> str:
@@ -685,6 +715,7 @@ class EnvLayer:
             "config_file": self.config_file,
             "provides": self.provides,
             "provider_requires": self.requires_provider,
+            "sets": self.sets,
         }
 
     def __repr__(self) -> str:
