@@ -115,6 +115,7 @@ SUPPORTED_FIELD_PATTERNS = {
     XEnv.layer_generator(): {"type": "single", "description": "Generator executable for dynamic layers"},
     XEnv.layer_provides(): {"type": "single", "description": "Capabilities provided by this layer"},
     XEnv.layer_requires_provider(): {"type": "single", "description": "Capabilities required (virtual)"},
+    XEnv.layer_sets(): {"type": "single", "description": "Internal variables set when this layer is present (KEY=VALUE)"},
 
     # Variable definition patterns (these match multiple fields)
     f"{XEnv.VAR_PREFIX}": {"type": "pattern", "description": "Environment variable definition"},
@@ -1090,6 +1091,7 @@ def _generate_boilerplate():
 # X-Env-Layer-Desc: Layer description
 # X-Env-Layer-Version: 1.0.0
 # X-Env-Layer-Category: general
+# X-Env-Layer-Sets: KEY=VALUE
 #
 # X-Env-Layer-Requires:
 # X-Env-Layer-Conflicts:
