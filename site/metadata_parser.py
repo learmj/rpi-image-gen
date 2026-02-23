@@ -1180,6 +1180,7 @@ def Metadata_register_parser(subparsers):
     parser.add_argument("--validate", metavar="PATH", help="Validate metadata and environment variables")
     parser.add_argument("--describe", metavar="PATH", help="Describe layer and variable information")
     parser.add_argument("--lint", metavar="PATH", help="Lint metadata syntax and field names (no env var validation)")
+    parser.add_argument("--emit", metavar="PATH", help="Lint and emit variables as shell key=value pairs")
     parser.add_argument("--gen", action="store_true", help="Generate boilerplate metadata template")
     parser.add_argument("--help-validation", action="store_true", help="Show validation help")
     parser.add_argument("--write-out", metavar="FILE", help="Write key=value pairs to file (works with --parse)")
@@ -1202,6 +1203,9 @@ def _main(args):
     if args.parse:
         command = "parse"
         path = args.parse
+    elif args.emit:
+        command = "emit"
+        path = args.emit
     elif args.validate:
         command = "validate"
         path = args.validate
@@ -1393,7 +1397,6 @@ def _main(args):
                 "missing_var_prefix",
                 "unexpected_var_prefix",
                 "orphaned_attributes",
-                "invalid_default",
                 "invalid_validation_rule",
                 "missing_layer_name",
                 "no_metadata_fields",
@@ -1413,6 +1416,33 @@ def _main(args):
             exit(1)
         else:
             print("OK")
+
+    elif command == "emit":
+        lint_results = meta.lint_metadata_syntax()
+        has_errors = False
+        for key, result in lint_results.items():
+            if not result.get("valid", True):
+                print(f"[ERROR] {result.get('message', key)}", file=sys.stderr)
+                has_errors = True
+        if has_errors:
+            exit(1)
+
+        validation_results = meta.validate_env_vars()
+        for var, result in validation_results.items():
+            if result.get("valid") is False:
+                msg = result.get("message", f"{var}: validation failed")
+                print(f"[ERROR] {msg}", file=sys.stderr)
+                has_errors = True
+        if has_errors:
+            exit(1)
+
+        resolved = meta.get_resolved_env_vars()
+        for key in sorted(resolved.keys()):
+            var = resolved[key]
+            if not var.should_set_in_environment():
+                continue
+            print(f'{key}="{var.value if var.value is not None else ""}"')
+
     elif command == "describe":
         try:
             if not varname:
