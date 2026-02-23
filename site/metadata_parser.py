@@ -53,7 +53,7 @@ class ValidationResultBuilder:
             status="orphaned_attributes",
             valid=False,
             required=False,
-            message=f"{self.filepath}: Found attribute fields for variable '{varname}' but no base {XEnv.var_base(varname)} definition"
+            message=f"{self.filepath}: Found attribute fields for variable '{varname}' but no base {XEnv.VAR_PREFIX}{varname} definition"
         )
 
     def unsupported_validation_rule(self, var_name: str, rule: str, value=None, required=False):
@@ -483,20 +483,17 @@ class Metadata:
         for key in self._container.raw_metadata.keys():
             if XEnv.is_var_field(key) and is_field_supported(key):
                 if XEnv.is_base_var_field(key):
-                    # Base variable definition
-                    base_vars.add(XEnv.extract_base_var_name(key).lower())
+                    base_vars.add(XEnv.extract_base_var_name(key))
                 elif any(key.endswith(suffix) for suffix in ["-Desc", "-Valid", "-Required", "-Set", "-Anchor", "-Conflicts"]):
-                    # Attribute field - extract variable name
                     var_part = XEnv.extract_var_name(key)
                     for suffix in ["-Desc", "-Valid", "-Required", "-Set", "-Anchor", "-Conflicts"]:
                         if var_part.endswith(suffix):
-                            varname = var_part[:-len(suffix)].lower()
-                            attribute_vars.add(varname)
+                            attribute_vars.add(var_part[:-len(suffix)])
                             break
 
         orphaned_vars = attribute_vars - base_vars
         for varname in orphaned_vars:
-            results[f"ORPHANED_ATTRS_{varname.upper()}"] = self._result_builder.orphaned_attributes(varname)
+            results[f"ORPHANED_ATTRS_{varname}"] = self._result_builder.orphaned_attributes(varname)
 
         return results
 
