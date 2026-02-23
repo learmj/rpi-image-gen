@@ -108,12 +108,17 @@ ctx[SRCROOT]="${SRCROOT:-$(realpath -e .)}"
 
 ###############################################################################
 # Stage 1: Parameter assembly
+#   Read registry
 #   Parse config
 #   Seed env for subsequent stages
 ###############################################################################
 parameter_assembly()
 {
    msg "\nPARAM"
+
+   # Seed with registry defaults
+   ig metadata --emit "$IGTOP/registry.defs" > "${TMPDIR}/registry.env" \
+      || die "Failed to parse registry"
 
    # Read config, writing all settings to file. Deferred variable resolution in pipeline
    # means that variable expansion does not happen here, so a config file can use any
@@ -123,8 +128,11 @@ parameter_assembly()
       --path "$HOST_CONFIG_PATH" \
       "$HOST_CONFIG_FILE"     \
       --overrides "$OVRF" \
-      --write-to "${TMPDIR}/config.env" \
+      --write-to "${TMPDIR}/userconfig.env" \
       || die "Config parse failed"
+
+   # Prepend registry defaults so config overrides (last wins)
+   cat "${TMPDIR}/registry.env" "${TMPDIR}/userconfig.env" > "${TMPDIR}/config.env"
 
    # Toolchain variables. Native unless ARCH forces cross.
    if [ -z "${ARCH:-}" ]; then
