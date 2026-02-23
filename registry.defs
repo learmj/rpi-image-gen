@@ -16,6 +16,13 @@ X-Env-Var-IG_ENABLE_HOST_BDEBSTRAP-Valid: bool
 X-Env-Var-IG_ENABLE_HOST_BDEBSTRAP-Set: y
 
 
+X-Env-Var-IG_ENABLE_HOST_GENIMAGE: n
+X-Env-Var-IG_ENABLE_HOST_GENIMAGE-Desc: Build and install genimage for the
+ host. Image creation only.
+X-Env-Var-IG_ENABLE_HOST_GENIMAGE-Valid: bool
+X-Env-Var-IG_ENABLE_HOST_GENIMAGE-Set: y
+
+
 #
 # Device
 #

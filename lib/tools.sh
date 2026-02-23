@@ -5,13 +5,16 @@
 # built and installed as prerequisites in a reusable mini-sysroot.
 # Can scale as needed, eg move away from bash array to file. Main thing
 # is to retain functionality: vars -> registry -> selection -> action
+#
+# See registry.defs
 readonly -a IG_TOOLS_REGISTRY=(
+   "IG_ENABLE_HOST_BDEBSTRAP|y|bdebstrap"
    "IG_ENABLE_HOST_GENIMAGE|y|genimage"
 )
 
 collect_build_deps() {
    local envfile="${1:?missing env file}"
-   local packages=(bdebstrap) # mandatory
+   local packages=
    local var value pkg
 
    for entry in "${IG_TOOLS_REGISTRY[@]}"; do
