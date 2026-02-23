@@ -37,6 +37,16 @@ class ValidationResultBuilder:
             message=f"{XEnv.VAR_PREFIX}* fields are defined but {XEnv.var_prefix()} is missing. Environment variables require a valid prefix."
         )
 
+    def unexpected_var_prefix(self):
+        """Build result for VarPrefix present without layer fields."""
+        return self.build_result(
+            status="unexpected_var_prefix",
+            valid=False,
+            required=True,
+            message=f"{self.filepath}: {XEnv.var_prefix()} is set but no X-Env-Layer-* fields are present. "
+                    f"VarPrefix is only valid in layer metadata."
+        )
+
     def orphaned_attributes(self, varname: str):
         """Build result for orphaned variable attributes."""
         return self.build_result(
@@ -195,14 +205,12 @@ class Metadata:
         if not meta_lines:
             return
 
-        # Check line contination syntax
-        for i, line in enumerate(meta_lines):
-            # Check for invalid continuation lines
+        # Check line continuation syntax
+        for line in meta_lines:
             if (':' not in line and  # Not a field definition
                 not line.startswith(' ') and  # Not indented with space
                 not line.startswith('\t') and  # Not indented with tab
-                line.strip() and  # Not empty
-                i > 0):  # Not the first line
+                line.strip()):  # Not empty
 
                 raise ValueError(f"Invalid DEB822 format: line '{line}' appears to be a continuation but is not indented. "
                                f"Continuation lines must start with a space or tab.")
@@ -223,15 +231,19 @@ class Metadata:
         with open(path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
-        yaml_text = "".join(lines).strip()
-        if yaml_text:
-            try:
-                yaml.safe_load(yaml_text)
-            except yaml.YAMLError as exc:
-                raise ValueError(f"Failed to parse YAML body in {path}: {exc}") from exc
+        has_meta_markers = any(line.strip() == '# METABEGIN' for line in lines)
+
+        # YAML validation only applies to files with embedded metadata (layer .yaml files)
+        if has_meta_markers:
+            yaml_text = "".join(lines).strip()
+            if yaml_text:
+                try:
+                    yaml.safe_load(yaml_text)
+                except yaml.YAMLError as exc:
+                    raise ValueError(f"Failed to parse YAML body in {path}: {exc}") from exc
 
         # Extract metadata block if embedded
-        if any(line.strip() == '# METABEGIN' for line in lines):
+        if has_meta_markers:
             # Find METABEGIN and METAEND markers in comment blocks
             in_meta = False
             meta_lines = []
@@ -255,35 +267,31 @@ class Metadata:
                         clean_line = line[1:].rstrip()
                         if clean_line.strip():
                             meta_lines.append(clean_line)
-
-            # Validate before parsing
-            self._validate_deb822_format(meta_lines)
-            meta_str = "\n".join(meta_lines)
         else:
-            # Handle files with direct X-Env-* fields (no comment wrapper)
+            # Handle files with direct deb822 fields (no comment wrapper)
             meta_lines = []
             for line in lines:
                 line = line.rstrip()
-                # Only keep non-comment, non-empty lines that look like metadata
-                if line and not line.startswith('#') and ':' in line:
-                    field_name = line.split(':', 1)[0].strip()
-                    if field_name.startswith('X-Env-'):
-                        meta_lines.append(line)
+                if not line or line.startswith('#'):
+                    continue
+                meta_lines.append(line)
 
-            # Validate before parsing
-            self._validate_deb822_format(meta_lines)
-            meta_str = "\n".join(meta_lines)
+        # Common path: validate format, parse, check field names
+        self._validate_deb822_format(meta_lines)
+        meta_str = "\n".join(meta_lines)
 
-        # Throw directly at deb822 module
         try:
             result = deb822.Deb822(meta_str)
 
             # Minimal post-processing: validate field names and check for empty metadata
             if result:
-                # Check all fields are X-Env-
-                invalid_fields = [field for field in result.keys() if not field.startswith('X-Env-')]
+                xenv_fields = [f for f in result.keys() if f.startswith('X-Env-')]
+                invalid_fields = [f for f in result.keys() if not f.startswith('X-Env-')]
                 if invalid_fields:
-                    raise ValueError(f"Invalid field names (must start with 'X-Env-'): {', '.join(invalid_fields)}")
+                    if xenv_fields or has_meta_markers:
+                        raise ValueError(f"Invalid field names (must start with 'X-Env-'): {', '.join(invalid_fields)}")
+                    # No X-Env fields and no markers — not a metadata file
+                    return deb822.Deb822()
             elif meta_str.strip():
                 # File has data but not X-Env
                 raise ValueError(f"No valid X-Env-* fields found in metadata")
@@ -315,8 +323,8 @@ class Metadata:
         if unsupported_fields:
             raise ValueError(f"Cannot process variables with unsupported fields: {list(unsupported_fields.keys())}. Run 'validate' command for details.")
 
-        # Check if variables are defined but no prefix is provided
-        if self._container.variables and not self._container.var_prefix:
+        # Prefix is required for layer metadata but optional for standalone registry files
+        if self._container.variables and not self._container.var_prefix and self._has_layer_fields():
             raise ValueError("Cannot process variables: X-Env-Var-* fields are defined but X-Env-VarPrefix is missing. Environment variables require a valid prefix.")
 
         for var_name, env_var in self._container.variables.items():
@@ -449,13 +457,23 @@ class Metadata:
         """Validate schema and return errors if any."""
         return self._collect_schema_errors()
 
+    def _has_layer_fields(self):
+        """Check if this metadata contains any X-Env-Layer-* fields."""
+        return any(k.startswith("X-Env-Layer-") for k in self._container.raw_metadata.keys())
+
     def _validate_prefix_and_orphans(self):
         """Check for missing prefix and orphaned variable attributes."""
         results = {}
 
-        # Check if variables are defined but no prefix is provided
-        if self._container.variables and not self._container.var_prefix:
+        has_layer = self._has_layer_fields()
+        has_prefix = bool(self._container.var_prefix)
+
+        if has_layer and not has_prefix and self._container.variables:
             results["MISSING_VAR_PREFIX"] = self._result_builder.missing_var_prefix()
+            return results
+
+        if not has_layer and has_prefix:
+            results["UNEXPECTED_VAR_PREFIX"] = self._result_builder.unexpected_var_prefix()
             return results
 
         # Check for orphaned variable attribute fields
@@ -951,8 +969,8 @@ class Metadata:
         if unsupported_fields:
             raise ValueError(f"Cannot process variables with unsupported fields: {list(unsupported_fields.keys())}. Run 'validate' command for details.")
 
-        # Check if variables are defined but no prefix is provided
-        if self._container.variables and not self._container.var_prefix:
+        # Prefix is required for layer metadata but optional for standalone registry files
+        if self._container.variables and not self._container.var_prefix and self._has_layer_fields():
             raise ValueError("Cannot process variables: X-Env-Var-* fields are defined but X-Env-VarPrefix is missing. Environment variables require a valid prefix.")
 
         resolver = VariableResolver()
@@ -1190,8 +1208,6 @@ def _main(args):
     elif args.describe:
         command = "describe"
         path = args.describe
-
-
     elif args.lint:
         command = "lint"
         path = args.lint
@@ -1253,7 +1269,7 @@ def _main(args):
                 elif result["status"] == "unsupported_field":
                     log_error(result['message'])
                     has_validation_errors = True
-                elif result["status"] == "missing_var_prefix":
+                elif result["status"] in ("missing_var_prefix", "unexpected_var_prefix"):
                     log_error(result['message'])
                     has_validation_errors = True
                 elif result["status"] == "invalid_value":
@@ -1341,7 +1357,7 @@ def _main(args):
                 print(f"[SKIP] {result['optional_var']}={result['value']} (optional, no validation rule)")
             elif result["status"] == "optional_unset":
                 print(f"[INFO] {var} - optional, not set")
-            elif result["status"] == "missing_var_prefix":
+            elif result["status"] in ("missing_var_prefix", "unexpected_var_prefix"):
                 print(f"[ERROR] {result['message']}")
                 has_errors = True
             elif result["status"] == "invalid_value":
@@ -1375,6 +1391,7 @@ def _main(args):
                 unsupported_count += 1
             elif result["status"] in [
                 "missing_var_prefix",
+                "unexpected_var_prefix",
                 "orphaned_attributes",
                 "invalid_default",
                 "invalid_validation_rule",
