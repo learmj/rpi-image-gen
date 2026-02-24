@@ -114,6 +114,8 @@ Generators must write a complete layer to the output path. A trivial generator c
 
 `X-Env-Layer-Generator`: If dynamic, the generator invoked by the loader
 
+`X-Env-Layer-Sets`: Space-separated KEY=VALUE pairs injected into the build environment when this layer is present
+
 === Dependencies and Providers
 
 ==== X-Env-Layer-Requires
@@ -156,6 +158,15 @@ Only variables present in the environment can be used in dependencies.
 [IMPORTANT]
 ====
 Unlike dependencies, environment variables are not supported when evaluating providers.
+====
+
+==== X-Env-Layer-Sets
+
+Used to inject KEY=VALUE pairs into the build environment when this layer is present. Later layers override earlier ones.
+
+[IMPORTANT]
+====
+Typically used for internal build/feature flags that do not belong in the `IGconf_` namespace. Specifying `IGconf_` variables here will result in an error.
 ====
 
 === Environment Variables

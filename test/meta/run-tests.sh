@@ -556,6 +556,17 @@ run_test "layer-apply-env-trigger-cascade-cross-layer-lite" \
     0 \
     "Cross-layer trigger cascade should resolve lite to sd and disable ptable protection"
 
+run_test "layer-apply-env-layer-sets" \
+    'TMP_ENV=$(mktemp) && TMP_OUT=$(mktemp) && \
+     make_pipeline_env "$TMP_ENV" && \
+     ig pipeline --env-in "$TMP_ENV" --layers test-layer-sets --path "${PIPELINE_DIR}" --env-out "$TMP_OUT" >/dev/null && \
+     grep -q "^IG_ENABLE_HOST_BDEBSTRAP=y$" "$TMP_OUT" && \
+     grep -q "^IG_TEST_LAYER_SETS=active$" "$TMP_OUT" && \
+     grep -q "^IGconf_lsets_marker=present$" "$TMP_OUT"; \
+     status=$?; rm -f "$TMP_ENV" "$TMP_OUT"; exit $status' \
+    0 \
+    "Pipeline should inject X-Env-Layer-Sets variables into the environment"
+
 run_test "layer-apply-env-invalid" \
     'TMP_ENV=$(mktemp) && TMP_OUT=$(mktemp) && \
      make_pipeline_env "$TMP_ENV" && \
