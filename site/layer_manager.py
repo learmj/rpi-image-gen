@@ -1009,6 +1009,12 @@ def _layer_main(args):
             rel_layer_path = manager.layer_relpaths.get(layer_name, layer_path)
             print(f"Path: {rel_layer_path}")
 
+            mmdebstrap = manager._get_mmdebstrap_config(layer_name)
+            if mmdebstrap:
+                for field in ('suite', 'variant', 'mode'):
+                    if field in mmdebstrap:
+                        print(f"{field.capitalize()}: {mmdebstrap[field]}")
+
             if layer_info['depends']:
                 print("Depends:")
 
