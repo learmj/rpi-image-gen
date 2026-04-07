@@ -53,7 +53,7 @@ fi
 [ -x "../device/cryptroot/$installer" ] || \
    die "cryptroot: installer not found or not executable ($installer)"
 
-chroot "$1" apt install -y "${pkgs[@]}"
+chroot "$1" apt install -y --no-install-recommends "${pkgs[@]}"
 
 env -C ../device/cryptroot \
     PARTPROBE_DEVICES="${partprobe_devs}" \

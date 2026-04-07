@@ -14,4 +14,12 @@ install() {
    inst "$systemdsystemunitdir/cryptsetup-passphrase-agent.path"
 
    $SYSTEMCTL -q --root "$initdir" add-wants sysinit.target cryptsetup-passphrase-agent.path
+
+   # Install cipher-derived modules for this kernel version
+   conf="/etc/dracut.conf.d/rpi-cryptroot-modules-${kernel}.conf"
+   if [ -r "$conf" ]; then
+      while read -r m; do
+         [ -n "$m" ] && instmods "$m"
+      done < "$conf"
+   fi
 }

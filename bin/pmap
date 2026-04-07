@@ -212,6 +212,12 @@ def cryptvars(data):
                         etype_val = luks2.get("etype")
                         if isinstance(etype_val, str):
                             print(f'{mname}_ETYPE="{etype_val}"')
+                        cipher_val = luks2.get("cipher")
+                        if isinstance(cipher_val, str):
+                            print(f'{mname}_CIPHER="{cipher_val}"')
+                        hash_val = luks2.get("hash")
+                        if isinstance(hash_val, str):
+                            print(f'{mname}_HASH="{hash_val}"')
             for value in obj.values():
                 walk(value)
         elif isinstance(obj, list):

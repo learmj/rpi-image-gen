@@ -25,3 +25,19 @@ rsync -av initramfs-tools/ "$1/etc/initramfs-tools/"
 
 echo "PARTPROBE_DEVICES=\"${PARTPROBE_DEVICES}\"" \
    > "$1/etc/initramfs-tools/conf.d/rpi-cryptroot"
+
+
+# Write per-kernel module lists derived from LUKS container cipher specs
+for kver in $(ls "$1/lib/modules/" 2>/dev/null); do
+   kmods=""
+   for container in $CONTAINERS; do
+      cipher_var="${container}_CIPHER"
+      hash_var="${container}_HASH"
+
+      args=(--cipher "${!cipher_var}" --hash "${!hash_var}")
+      mods=$(cryptmod "${args[@]}" --modules-dir "$1/lib/modules/$kver")
+      kmods="$kmods $mods"
+   done
+   printf '%s\n' $kmods | sort -u \
+      > "$1/etc/initramfs-tools/conf.d/rpi-cryptroot-modules-${kver}"
+done

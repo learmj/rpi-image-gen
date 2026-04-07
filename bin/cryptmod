@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+# cryptmod: derive kernel crypto modules for a LUKS2 cipher spec
+# Uses modules.alias and modules.dep from the target chroot.
+
+import argparse, os, re, sys
+from collections import deque
+
+BASE    = ['dm-mod', 'dm-crypt', 'af_alg', 'algif_skcipher']
+IVMODES = {'plain', 'plain64', 'plain64be', 'benbi', 'null', 'lmk', 'random', 'eboiv'}
+
+
+def stem(p):
+    b = os.path.basename(p)
+    return b[:-6] if b.endswith('.ko.xz') else b[:-3] if b.endswith('.ko') else b
+
+
+def load_alias(moddir):
+    result = {}
+    with open(os.path.join(moddir, 'modules.alias')) as f:
+        for line in f:
+            p = line.split()
+            if len(p) == 3 and p[0] == 'alias' and p[1].startswith('crypto-'):
+                result.setdefault(p[1].removeprefix('crypto-'), set()).add(p[2])
+    return result
+
+
+def load_deps(moddir):
+    result = {}
+    with open(os.path.join(moddir, 'modules.dep')) as f:
+        for line in f:
+            if ':' in line:
+                lhs, _, rhs = line.partition(':')
+                result[stem(lhs)] = [stem(p) for p in rhs.split()]
+    return result
+
+
+def expand(seeds, deps):
+    seen, q = set(seeds), deque(seeds)
+    while q:
+        for d in deps.get(q.popleft(), []):
+            if d not in seen:
+                seen.add(d); q.append(d)
+    return seen
+
+
+ap = argparse.ArgumentParser(description='Derive crypto modules from a LUKS2 cipher spec')
+ap.add_argument('--cipher',      required=True, help='LUKS2 cipher spec (legacy or capi format)')
+ap.add_argument('--modules-dir', required=True, metavar='PATH', help='Path to /lib/modules/<kver> in the chroot')
+ap.add_argument('--hash',        metavar='ALGO', help='Hash algorithm (e.g. sha256)')
+args = ap.parse_args()
+
+algos = re.findall(r'[a-zA-Z][a-zA-Z0-9]*', args.cipher.removeprefix('capi:'))
+if args.hash:
+    if not re.fullmatch(r'[a-zA-Z][a-zA-Z0-9]*', args.hash):
+        sys.stderr.write(f"Error: invalid hash algorithm name '{args.hash}'\n")
+        sys.exit(1)
+    algos.append(args.hash)
+
+alias = load_alias(args.modules_dir)
+deps  = load_deps(args.modules_dir)
+
+modules = set(BASE)
+for a in algos:
+    found = alias.get(a, set())
+    if not found and a not in IVMODES:
+        sys.stderr.write(f"Warning: no alias for '{a}' (may be built-in)\n")
+    modules |= found
+
+for m in sorted(expand(modules, deps)):
+    print(m)

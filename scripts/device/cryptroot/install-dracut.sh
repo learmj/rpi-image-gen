@@ -20,6 +20,23 @@ done > "$1/etc/crypttab"
 rsync -av dracut/dracut.modules.d/ "$1/usr/lib/dracut/modules.d/"
 rsync -av dracut/dracut.conf.d/ "$1/etc/dracut.conf.d/"
 
+
 mkdir -p "$1/etc/rpi/"
 echo "PARTPROBE_DEVICES=\"${PARTPROBE_DEVICES}\"" \
    > "$1/etc/rpi/cryptroot.conf"
+
+
+# Write per-kernel module lists derived from LUKS container cipher specs
+for kver in $(ls "$1/lib/modules/" 2>/dev/null); do
+   kmods=""
+   for container in $CONTAINERS; do
+      cipher_var="${container}_CIPHER"
+      hash_var="${container}_HASH"
+
+      args=(--cipher "${!cipher_var}" --hash "${!hash_var}")
+      mods=$(cryptmod "${args[@]}" --modules-dir "$1/lib/modules/$kver")
+      kmods="$kmods $mods"
+   done
+   printf '%s\n' $kmods | sort -u \
+      > "$1/etc/dracut.conf.d/rpi-cryptroot-modules-${kver}"
+done
