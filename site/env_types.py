@@ -3,6 +3,7 @@ import shlex
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple
 from validators import BaseValidator, parse_validator
+from capability_registry import provider_token_type
 
 
 # X-Env field helpers
@@ -560,6 +561,12 @@ class EnvLayer:
 
         after_provider_str = metadata_dict.get(XEnv.layer_after_provider(), "")
         after_provider = cls._parse_dependency_list(after_provider_str, doc_mode)
+        for token in after_provider:
+            if provider_token_type(token) == 'capability' and not doc_mode:
+                raise ValueError(
+                    f"X-Env-Layer-AfterProvider: '{token}' is a capability token — "
+                    f"capability tokens cannot be used in AfterProvider (use RequiresProvider instead)"
+                )
 
         conflicts_str = metadata_dict.get(XEnv.layer_conflicts(), "")
         conflicts = cls._parse_dependency_list(conflicts_str, doc_mode)

@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass
 import yaml
 
@@ -17,6 +17,7 @@ from metadata_parser import Metadata
 from metadata_parser import print_env_var_descriptions
 
 from logger import log_warning, log_failure, log_error, log_info
+from capability_registry import provider_token_type
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,8 @@ class LayerManager:
         show_loaded: bool = False,
         doc_mode: bool = False,
         fail_on_lint: bool = False,
+        cap_dirs: Optional[List[str]] = None,
+        capability_overrides: Optional[Dict[str, Any]] = None,
     ):
         if search_paths is None:
             search_paths = ['./layer']
@@ -56,19 +59,20 @@ class LayerManager:
         self.fail_on_lint = fail_on_lint
         # provider index will be built after layers are loaded
         self.provider_index: Dict[str, str] = {}
-        self.provider_conflicts: Dict[str, Set[str]] = {}
         self.generated_root: Optional[Path] = None
         self.load_errors: Dict[str, str] = {}
         self.pending_generators: Dict[Tuple[str, str], tuple] = {}  # (layer_name, version) -> (cmd, input, output)
+        self._capability_overrides: Dict[str, Any] = capability_overrides or {}
+        self._registry = None
+        if cap_dirs:
+            from capability_registry import CapabilityRegistry
+            self._registry = CapabilityRegistry(cap_dirs)
 
         for path in self.search_paths:
             if not path.exists():
                 log_warning(f"Search path '{path}' does not exist")
 
         self.load_layers()
-
-        # now that self.layers is populated, build provider index
-        self._build_provider_index()
 
 
     def _handle_layer_load_error(self, rel_path: Path, message: str, exc: Optional[Exception] = None, layer_name: Optional[str] = None) -> None:
@@ -138,19 +142,70 @@ class LayerManager:
         v = self._latest_version(name)
         return (name, v) if v is not None else None
 
-    def _build_provider_index(self):
-        """Index providers to unique layer names"""
-        for (lname, _version), layer in self.layers.items():
-            info = layer.get_layer_info()
+    def _index_providers(self, build_order: List[str]) -> None:
+        """Index all provider tokens for the build set into provider_index.
+
+        Labels are checked for duplicates and added directly. Capability tokens
+        are validated against the registry, checked for direct-declaration
+        duplicates, then expanded (hierarchy + implies) into the index.
+        Only the directly-declared capability token is checked for duplicates —
+        two layers declaring different tokens that share an expanded ancestor
+        (e.g. hw:wlan:broadcom + hw:wlan:mediatek both expanding to hw:wlan)
+        is valid and supports multi-adapter boards. This relies on expand()
+        always including the declared token itself in its output.
+        Capability overrides from the build config are applied last.
+        """
+        self.provider_index.clear()
+
+        # Tracks only directly-declared tokens; expanded ancestors are excluded.
+        # Conflict detection reads from here so that a parent token written into
+        # provider_index by one layer's expansion does not falsely conflict with
+        # another layer that directly declares the same parent.
+        directly_declared: Dict[str, str] = {}
+
+        unknown: Dict[str, List[str]] = {}
+        for lname in build_order:
+            info = self.get_layer_info(lname)
             if not info:
                 continue
             for prov in info.get('provides', []):
-                existing = self.provider_index.get(prov)
+                existing = directly_declared.get(prov)
                 if existing and existing != lname:
-                    # record conflict but keep the first provider mapping (first-wins semantics)
-                    self.provider_conflicts.setdefault(prov, set()).update({existing, lname})
-                else:
+                    raise ValueError(
+                        f"Provider conflict: '{prov}' is declared by multiple layers: {existing}, {lname}"
+                    )
+                directly_declared[prov] = lname
+                if provider_token_type(prov) == 'label':
                     self.provider_index[prov] = lname
+                else:
+                    if not self._registry:
+                        raise ValueError("Build includes capability tokens but no capability registry is loaded")
+                    if prov not in self._registry:
+                        unknown.setdefault(lname, []).append(prov)
+                        continue
+                    for token in self._registry.expand(prov):
+                        self.provider_index.setdefault(token, lname)
+
+        if unknown:
+            msgs = [f"{lname}: declares unknown capabilities {tokens}" for lname, tokens in sorted(unknown.items())]
+            raise ValueError('\n'.join(msgs))
+
+        for token, value in self._capability_overrides.items():
+            if value is False:
+                to_remove = [t for t in self.provider_index
+                             if t == token or t.startswith(token + ':')]
+                if not to_remove:
+                    log_warning(f"capability override: '{token}' not in provider index")
+                for t in to_remove:
+                    self.provider_index.pop(t)
+            elif value is True:
+                if self._registry and token not in self._registry:
+                    raise ValueError(
+                        f"capability override: '{token}' is not defined in the capability registry"
+                    )
+                parts = token.split(':')
+                for i in range(2, len(parts) + 1):
+                    self.provider_index.setdefault(':'.join(parts[:i]), '_config_')
 
     def load_layers(self):
         """Discover and load all layer files, creating Metadata objects for each"""
@@ -510,8 +565,8 @@ class LayerManager:
         for layer in target_layers:
             add_layer_and_deps(layer)
 
-        # Fail if any capability is claimed by more than one layer
-        self._check_provider_conflicts_in_scope(build_order)
+        # Index all providers for the build set and check for conflicts
+        self._index_providers(build_order)
 
         # Apply AfterProvider ordering constraints
         build_order = self._apply_provider_ordering(build_order)
@@ -522,27 +577,24 @@ class LayerManager:
         return build_order
 
     def _validate_provider_requirements(self, build_order: List[str]) -> None:
-        """Validate that all required providers are satisfied by layers in the build order"""
-        # Collect all providers available in the build order
-        available_providers = set()
-        for layer_name in build_order:
-            layer_info = self.get_layer_info(layer_name)
-            if layer_info:
-                available_providers.update(layer_info.get('provides', []))
-
-        # Check both RequiresProvider (validation-only) and AfterProvider (validation + ordering)
+        """Validate that all required providers are satisfied by the build set.
+        Must be called after _index_providers() — uses provider_index directly,
+        which includes expanded capability ancestors."""
         for layer_name in build_order:
             layer_info = self.get_layer_info(layer_name)
             if layer_info:
                 for required_provider in (layer_info.get('provider_requires', []) +
                                           layer_info.get('after_provider', [])):
-                    if required_provider not in available_providers:
-                        raise ValueError(f"Layer '{layer_name}' requires provider '{required_provider}' but no layer in the dependency chain provides it")
+                    if required_provider not in self.provider_index:
+                        raise ValueError(
+                            f"Layer '{layer_name}' requires provider '{required_provider}' "
+                            f"but no layer in the dependency chain provides it"
+                        )
 
     def _apply_provider_ordering(self, build_order: List[str]) -> List[str]:
         """Stable-sort build_order so each AfterProvider consumer follows its provider."""
-        # Raw provides only - ordering is relative to the declaring layer only
-        # @TODO include capability token checking
+        # Software provider tokens only — capability tokens are rejected in
+        # AfterProvider at parse time (env_types.py), so none will appear here.
         cap_to_layer = {}
         for layer_name in build_order:
             layer_info = self.get_layer_info(layer_name)
@@ -620,19 +672,6 @@ class LayerManager:
 
         return result
 
-    def _check_provider_conflicts_in_scope(self, layer_names: List[str]) -> None:
-        """Validate that no provider conflicts exist within the given scope of layers."""
-        # Build provider mapping only for the layers in scope
-        scope_providers = {}
-        for layer_name in layer_names:
-            layer_info = self.get_layer_info(layer_name)
-            if layer_info:
-                for provider in layer_info.get('provides', []):
-                    if provider in scope_providers:
-                        # Found a conflict within scope
-                        existing_layer = scope_providers[provider]
-                        raise ValueError(f"Provider conflict: '{provider}' is provided by multiple layers: {existing_layer}, {layer_name}")
-                    scope_providers[provider] = layer_name
 
     def _load_layer_yaml(self, filepath: str) -> Optional[dict]:
         try:
