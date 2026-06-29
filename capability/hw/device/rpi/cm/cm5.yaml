@@ -1,0 +1,11 @@
+hw:device:rpi:cm5:
+  desc: Raspberry Pi CM5 - BCM2712 platform (eMMC, WiFi, Bluetooth)
+  implies:
+    - hw:device:rpi:cm
+    - hw:soc:bcm2712
+    - hw:eeprom:rpi
+    - boot:gpt
+    - boot:rpi:dtbootpartn
+    - hw:storage:emmc
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom

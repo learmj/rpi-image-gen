@@ -1,0 +1,12 @@
+hw:device:rpi:cm4-lite:
+  desc: Raspberry Pi CM4 Lite - BCM2711 platform, no eMMC (SD card via carrier board)
+  implies:
+    - hw:device:rpi:cm
+    - hw:soc:bcm2711
+    - hw:eeprom:rpi
+    - boot:gpt
+    - boot:rpi:dtbootpartn
+    - hw:storage:sd
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom
+    - boot:rpi:vc-firmware

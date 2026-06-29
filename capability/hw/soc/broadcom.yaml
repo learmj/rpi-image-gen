@@ -1,0 +1,21 @@
+hw:soc:bcm2712:
+  desc: Broadcom BCM2712 - Raspberry Pi 5 / CM5 (quad Cortex-A76)
+  implies:
+    - hw:arch:arm:cortex-a76
+    - hw:arch:arm:aes-accel
+    - hw:arch:arm:sha-accel
+
+hw:soc:bcm2711:
+  desc: Broadcom BCM2711 - Raspberry Pi 4 / CM4 / CM4S (quad Cortex-A72)
+  implies:
+    - hw:arch:arm:cortex-a72
+
+hw:soc:bcm2837:
+  desc: Broadcom BCM2837 - Raspberry Pi 3 / CM3 (quad Cortex-A53)
+  implies:
+    - hw:arch:arm:cortex-a53
+
+hw:soc:bcm2710:
+  desc: Broadcom BCM2710 (BCM2710A1) - quad Cortex-A53 die (used in BCM2837 package and RP3A0 SiP)
+  implies:
+    - hw:arch:arm:cortex-a53

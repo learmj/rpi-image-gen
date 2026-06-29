@@ -1,0 +1,8 @@
+boot:rpi:
+  desc: Raspberry Pi-specific boot configuration
+
+boot:rpi:vc-firmware:
+  desc: Device boot requires the Raspberry Pi VideoCore firmware loading chain
+
+boot:rpi:dtbootpartn:
+  desc: Bootloader propagates a valid (non-zero) boot partition number via Device Tree

@@ -1,0 +1,10 @@
+hw:device:rpi:cm4s-lite:
+  desc: Raspberry Pi CM4S Lite - BCM2711 platform, SODIMM form factor, no eMMC (SD via carrier board, no WiFi/BT)
+  implies:
+    - hw:device:rpi:cm
+    - hw:soc:bcm2711
+    - hw:eeprom:rpi
+    - boot:gpt
+    - boot:rpi:dtbootpartn
+    - hw:storage:sd
+    - boot:rpi:vc-firmware

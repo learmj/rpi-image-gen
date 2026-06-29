@@ -1,0 +1,4 @@
+hw:soc:rp3a0:
+  desc: Raspberry Pi RP3A0 - SiP containing BCM2710A1 die and 512 MB DRAM
+  implies:
+    - hw:soc:bcm2710

@@ -1,0 +1,9 @@
+hw:arch:arm:aes-accel:
+  desc: ARM AES hardware acceleration
+  implies:
+    - hw:crypto:aes-accel
+
+hw:arch:arm:sha-accel:
+  desc: ARM SHA hardware acceleration
+  implies:
+    - hw:crypto:sha-accel

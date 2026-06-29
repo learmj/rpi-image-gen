@@ -1,0 +1,7 @@
+hw:device:rpi:
+  desc: Raspberry Pi device family
+
+include:
+  - periph.yaml
+  - sbc/sbc.yaml
+  - cm/cm.yaml

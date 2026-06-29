@@ -1,0 +1,8 @@
+hw:device:rpi:zero2w:
+  desc: Raspberry Pi Zero 2 W - RP3A0 SiP (SD card, Wifi, Bluetooth)
+  implies:
+    - hw:soc:rp3a0
+    - hw:storage:sd
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom
+    - boot:rpi:vc-firmware

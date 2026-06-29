@@ -1,0 +1,11 @@
+hw:device:rpi:pi5:
+  desc: Raspberry Pi 5 - BCM2712 platform (quad Cortex-A76)
+  implies:
+    - hw:soc:bcm2712
+    - hw:storage:sd
+    - hw:eeprom:rpi
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom
+    - hw:ethernet
+    - boot:gpt
+    - boot:rpi:dtbootpartn
