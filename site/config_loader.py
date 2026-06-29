@@ -1,8 +1,9 @@
+import json
 import os
 import sys
 import yaml
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Any, Tuple
 
 
 class ConfigLoader:
@@ -15,6 +16,7 @@ class ConfigLoader:
         self.file_format = self._detect_format()
 
         self.data: Dict[str, Dict[str, str]] = {}
+        self.capability_overrides: Dict[str, Any] = {}
         self.overrides: Dict[str, str] = {}
 
         self._load()
@@ -69,7 +71,7 @@ class ConfigLoader:
 
     def _load_yaml(self):
         """Load YAML file and convert to internal format"""
-        def _load_yaml_recursive(path: Path, visited: set) -> Dict[str, Dict[str, str]]:
+        def _load_yaml_recursive(path: Path, visited: set) -> tuple:
             if path in visited:
                 raise ValueError(f"Circular include detected in YAML files: {path}")
             visited.add(path)
@@ -83,8 +85,17 @@ class ConfigLoader:
             if not isinstance(yaml_data, dict):
                 raise ValueError(f"YAML file {path} must contain a mapping at root level")
 
+            # Extract capability section — pass-through, not converted to IGconf_* variables
+            capability_here: Dict[str, Any] = {}
+            if 'capability' in yaml_data:
+                cap_data = yaml_data.pop('capability')
+                if not isinstance(cap_data, dict):
+                    raise ValueError(f"'capability' section in {path} must be a mapping")
+                capability_here = cap_data
+
             # Handle include directive
             included_sections: Dict[str, Dict[str, str]] = {}
+            included_capability: Dict[str, Any] = {}
             if 'include' in yaml_data and isinstance(yaml_data['include'], list):
                 raise ValueError(
                     f"List includes are not supported in {path}"
@@ -94,7 +105,7 @@ class ConfigLoader:
                 if not inc_file:
                     raise ValueError(f"YAML include directive in {path} missing 'file' key")
                 inc_path = self._resolve_include(inc_file, path.parent)
-                included_sections = _load_yaml_recursive(inc_path, visited)
+                included_sections, included_capability = _load_yaml_recursive(inc_path, visited)
                 yaml_data.pop('include', None)
 
             # Convert current file sections
@@ -107,7 +118,7 @@ class ConfigLoader:
                 else:
                     raise ValueError(f"Section '{sect}' in {path} must be a mapping or list")
 
-            # Merge: current overrides included
+            # Merge sections: current overrides included
             merged = {**included_sections}
             for sect, mapping in curr_sections.items():
                 if sect not in merged:
@@ -121,9 +132,11 @@ class ConfigLoader:
                                 file=sys.stderr,
                             )
                     merged[sect][k] = v
-            return merged
 
-        self.data = _load_yaml_recursive(Path(self.cfg_path).resolve(), set())
+            # Merge capability: current file overrides included
+            return merged, {**included_capability, **capability_here}
+
+        self.data, self.capability_overrides = _load_yaml_recursive(Path(self.cfg_path).resolve(), set())
 
     def _load_overrides(self):
         """Load override file with key=value pairs and expand variables"""
@@ -354,6 +367,11 @@ class ConfigLoader:
                     # For override-only variables, write them directly
                     self._write_override_only_var(f, override_key, section)
 
+            # Serialise capability overrides as a reserved JSON-encoded key so
+            # pipeline.py can reconstruct them without re-parsing the config YAML.
+            if self.capability_overrides:
+                f.write(f'_IG_CAPABILITY_OVERRIDES={json.dumps(self.capability_overrides, separators=(",", ":"))}\n')
+
     def _write_override_only_var(self, file_handle, override_key: str, section_filter: Optional[str]):
         """Write an override-only variable that doesn't exist in config file"""
         # Check precedence: environment -> override
@@ -435,6 +453,7 @@ def ConfigLoader_register_parser(subparsers):
     parser.add_argument("--write-to", metavar="FILE", help="Write variables to file instead of env load")
     parser.add_argument("--overrides", metavar="FILE", help="Override file with key=value pairs")
     parser.add_argument("--gen", action="store_true", help="Generate example .yaml with include syntax")
+    parser.add_argument("--cap", metavar="TOKEN", nargs="?", const="", help="Expand a capability token and show its full token set; omit TOKEN to list all")
     parser.set_defaults(func=_main)
 
 
@@ -443,8 +462,12 @@ def _main(args):
         _generate_boilerplate()
         return
 
+    if args.cap is not None:
+        _show_capability(args.cap, args)
+        return
+
     if not args.cfg_path:
-        print("Error: cfg_path is required unless --gen is used", file=sys.stderr)
+        print("Error: cfg_path is required unless --gen or --cap is used", file=sys.stderr)
         return
 
     try:
@@ -464,6 +487,36 @@ def _main(args):
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         raise SystemExit(1)
+
+
+def _show_capability(token: str, args):
+    import os
+    from capability_registry import CapabilityRegistry
+
+    igroot = os.environ.get('IGTOP', str(Path(__file__).parent.parent))
+    cap_dirs = [os.path.join(igroot, 'capability')]
+    for srcroot in (args.path.split(':') if getattr(args, 'path', None) else []):
+        if srcroot.strip():
+            cap_dirs.append(os.path.join(srcroot.strip(), 'capability'))
+
+    try:
+        registry = CapabilityRegistry(cap_dirs)
+        tokens = registry.all_tokens if not token else registry.expand(token)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        raise SystemExit(1)
+
+    if not tokens:
+        return
+
+    cwd = Path.cwd()
+    col = max(len(t) for t in tokens) + 2
+    for t, source in sorted(tokens.items()):
+        try:
+            src = str(Path(source).relative_to(cwd))
+        except ValueError:
+            src = source
+        print(f"{t:<{col}}{src}")
 
 
 def _generate_boilerplate():

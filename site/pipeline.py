@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from collections import OrderedDict
 from typing import List, Optional, Dict, Tuple
@@ -46,6 +47,12 @@ def _pipeline_main(args):
     LogConfig.set_verbose(True)
 
     assignments: OrderedDict[str, str] = load_env_file(args.env_in)
+
+    # Extract capability overrides before seeding the environment — this is a
+    # reserved key, not an IGconf_* variable, and must not enter os.environ.
+    cap_overrides_raw = assignments.pop('_IG_CAPABILITY_OVERRIDES', None)
+    capability_overrides = json.loads(cap_overrides_raw) if cap_overrides_raw else {}
+
     # Seed environment with incoming assignments, but do not override any
     # pre-existing values (e.g., CLI overrides passed through the wrapper).
     for key, value in assignments.items():
@@ -56,10 +63,17 @@ def _pipeline_main(args):
         else:
             os.environ[key] = value
 
+    igroot = os.environ.get('IGTOP', '')
+    srcroot = os.environ.get('SRCROOT', '')
+    cap_dirs = [os.path.join(igroot, 'capability')] if igroot else []
+    if srcroot and srcroot != igroot:
+        cap_dirs.append(os.path.join(srcroot, 'capability'))
+
     try:
-        manager = LayerManager(search_paths, ['*.yaml'], fail_on_lint=True)
+        manager = LayerManager(search_paths, ['*.yaml'], fail_on_lint=True,
+                               cap_dirs=cap_dirs, capability_overrides=capability_overrides)
     except ValueError as exc:
-        log_error(f"Error: {exc}")
+        log_error(str(exc))
         raise SystemExit(1)
 
     resolved_layers: List[str] = []
@@ -76,13 +90,13 @@ def _pipeline_main(args):
     try:
         build_order = manager.get_build_order(resolved_layers)
     except ValueError as exc:
-        log_error(f"Error: {exc}")
+        log_error(str(exc))
         raise SystemExit(1)
 
     try:
         manager.run_generators_for_layers(build_order)
     except ValueError as exc:
-        log_error(f"Error: {exc}")
+        log_error(str(exc))
         raise SystemExit(1)
 
     if not _validate_layers(manager, build_order):
@@ -99,10 +113,12 @@ def _pipeline_main(args):
     try:
         applied_values = _apply_layers(manager, build_order)
     except ValueError as exc:
-        log_error(f"Error: {exc}")
+        log_error(str(exc))
         raise SystemExit(1)
     for var_name, value in applied_values.items():
         assignments[var_name] = value
+
+    _log_providers(manager, build_order)
 
     if args.plan_out:
         _write_layer_plan(args.plan_out, build_order, manager)
@@ -147,6 +163,19 @@ def _inject_root_anchors(anchor_map: Dict[str, Dict[str, Optional[str]]], env_as
         value = env_assignments.get(root_var)
         if value:
             anchor_map.setdefault(f"@{root_var}", {"var": root_var, "value": value})
+
+
+def _log_providers(manager: LayerManager, build_order: List[str]) -> None:
+    build_set = set(build_order)
+    index = {t: l for t, l in manager.provider_index.items()
+             if l in build_set or l == '_config_'}
+    if not index:
+        return
+    col = max(len(t) for t in index) + 2
+    log_info("PROVIDERS")
+    for token in sorted(index):
+        layer = index[token] if index[token] != '_config_' else '(config)'
+        log_info(f"  {token:<{col}}{layer}")
 
 
 def _write_layer_plan(path: str, build_order: List[str], manager: LayerManager) -> None:
