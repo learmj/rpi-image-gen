@@ -1,0 +1,5 @@
+hw:device:
+  desc: Device platform identity
+
+include:
+  - device/rpi/rpi.yaml

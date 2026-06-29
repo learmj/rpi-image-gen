@@ -1,0 +1,25 @@
+hw:arch:aarch64:
+  desc: AArch64 64-bit execution state
+
+hw:arch:armv8:
+  desc: ARMv8-A architecture
+  implies:
+    - hw:arch:aarch64
+
+hw:arch:arm:
+  desc: ARM instruction set architecture family
+
+hw:arch:arm:cortex-a76:
+  desc: ARM Cortex-A76 microarchitecture
+  implies:
+    - hw:arch:armv8
+
+hw:arch:arm:cortex-a72:
+  desc: ARM Cortex-A72 microarchitecture
+  implies:
+    - hw:arch:armv8
+
+hw:arch:arm:cortex-a53:
+  desc: ARM Cortex-A53 microarchitecture
+  implies:
+    - hw:arch:armv8

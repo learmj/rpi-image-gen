@@ -1,0 +1,8 @@
+hw:crypto:
+  desc: Hardware cryptography acceleration
+
+hw:crypto:aes-accel:
+  desc: Accelerated AES operations
+
+hw:crypto:sha-accel:
+  desc: Accelerated SHA operations

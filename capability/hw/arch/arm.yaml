@@ -1,0 +1,3 @@
+include:
+  - arm/cores.yaml
+  - arm/extensions.yaml

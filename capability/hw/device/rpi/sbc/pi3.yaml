@@ -1,0 +1,7 @@
+hw:device:rpi:pi3:
+  desc: Raspberry Pi 3 - BCM2837 platform (quad Cortex-A53)
+  implies:
+    - hw:soc:bcm2837
+    - hw:storage:sd
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom

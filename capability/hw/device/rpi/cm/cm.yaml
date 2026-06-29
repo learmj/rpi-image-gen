@@ -1,0 +1,7 @@
+include:
+  - cm4.yaml
+  - cm4-lite.yaml
+  - cm4s.yaml
+  - cm4s-lite.yaml
+  - cm5.yaml
+  - cm5-lite.yaml

@@ -1,0 +1,6 @@
+hw:soc:
+  desc: System-on-Chip identity
+
+include:
+  - soc/broadcom.yaml
+  - soc/rpi.yaml

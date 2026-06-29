@@ -1,0 +1,2 @@
+boot:gpt:
+  desc: Bootloader has GPT support

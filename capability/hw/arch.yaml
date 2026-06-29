@@ -1,0 +1,5 @@
+hw:arch:
+  desc: Machine instruction set architecture
+
+include:
+  - arch/arm.yaml

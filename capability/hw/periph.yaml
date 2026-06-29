@@ -1,0 +1,30 @@
+hw:bluetooth:
+  desc: Bluetooth hardware
+
+hw:bluetooth:broadcom:
+  desc: Broadcom Bluetooth hardware
+
+hw:wlan:
+  desc: Wireless LAN hardware
+
+hw:wlan:broadcom:
+  desc: Broadcom WiFi hardware
+
+hw:storage:
+  desc: Onboard or directly attached storage
+
+hw:storage:sd:
+  desc: SD card slot
+
+hw:storage:emmc:
+  desc: Onboard eMMC storage soldered to the board
+
+hw:storage:nvme:
+  desc: NVMe storage - including attached via expansion or carrier board
+
+hw:eeprom:
+  desc: EEPROM for bootloader or configuration storage
+
+hw:pcie:
+  desc: PCIe interface - accessible via expansion connector
+

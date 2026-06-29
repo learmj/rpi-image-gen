@@ -1,0 +1,9 @@
+hw:device:rpi:pi4:
+  desc: Raspberry Pi 4 - BCM2711 platform (quad Cortex-A72)
+  implies:
+    - hw:soc:bcm2711
+    - hw:storage:sd
+    - hw:eeprom:rpi
+    - boot:gpt
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom

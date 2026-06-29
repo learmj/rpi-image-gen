@@ -1,0 +1,9 @@
+hw:device:rpi:cm5-lite:
+  desc: Raspberry Pi CM5 Lite - BCM2712 platform, no eMMC (SD card via carrier board)
+  implies:
+    - hw:soc:bcm2712
+    - hw:eeprom:rpi
+    - boot:gpt
+    - hw:storage:sd
+    - hw:wlan:broadcom
+    - hw:bluetooth:broadcom

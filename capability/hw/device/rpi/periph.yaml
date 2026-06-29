@@ -1,0 +1,2 @@
+hw:eeprom:rpi:
+  desc: Raspberry Pi SPI EEPROM - bootloader configuration storage

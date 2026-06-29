@@ -1,0 +1,6 @@
+include:
+  - crypto.yaml
+  - arch.yaml
+  - periph.yaml
+  - soc.yaml
+  - device.yaml
