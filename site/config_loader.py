@@ -518,14 +518,27 @@ def _show_capability(token: str, args):
     if not tokens:
         return
 
+    import textwrap
+    import sys as _sys
+
+    bold = "\033[1m" if _sys.stdout.isatty() else ""
+    reset = "\033[0m" if _sys.stdout.isatty() else ""
     cwd = Path.cwd()
-    col = max(len(t) for t in tokens) + 2
-    for t, source in sorted(tokens.items()):
+
+    entries = sorted(tokens.items())
+    for i, (t, source) in enumerate(entries):
         try:
             src = str(Path(source).relative_to(cwd))
         except ValueError:
             src = source
-        print(f"{t:<{col}}{src}")
+        desc = registry.get_desc(t) or ""
+        print(f"{bold}{t}{reset}")
+        if desc:
+            for line in textwrap.wrap(desc, width=76, initial_indent="  ", subsequent_indent="  "):
+                print(line)
+        print(f"  {src}")
+        if i < len(entries) - 1:
+            print()
 
 
 def _generate_boilerplate():
