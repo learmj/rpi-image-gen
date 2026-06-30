@@ -5,3 +5,4 @@ hw:device:rpi:cm4s-lite:
     - hw:eeprom:rpi
     - boot:gpt
     - hw:storage:sd
+    - boot:vc-firmware

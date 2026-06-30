@@ -7,3 +7,4 @@ hw:device:rpi:pi4:
     - boot:gpt
     - hw:wlan:broadcom
     - hw:bluetooth:broadcom
+    - boot:vc-firmware

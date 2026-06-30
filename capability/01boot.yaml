@@ -1,2 +1,5 @@
 boot:gpt:
   desc: Bootloader has GPT support
+
+boot:vc-firmware:
+  desc: Device boot requires the Raspberry Pi VideoCore firmware loading chain

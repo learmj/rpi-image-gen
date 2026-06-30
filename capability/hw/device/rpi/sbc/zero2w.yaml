@@ -5,3 +5,4 @@ hw:device:rpi:zero2w:
     - hw:storage:sd
     - hw:wlan:broadcom
     - hw:bluetooth:broadcom
+    - boot:vc-firmware

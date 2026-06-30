@@ -7,3 +7,4 @@ hw:device:rpi:cm4-lite:
     - hw:storage:sd
     - hw:wlan:broadcom
     - hw:bluetooth:broadcom
+    - boot:vc-firmware

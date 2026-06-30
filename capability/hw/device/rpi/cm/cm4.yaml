@@ -7,3 +7,4 @@ hw:device:rpi:cm4:
     - hw:storage:emmc
     - hw:wlan:broadcom
     - hw:bluetooth:broadcom
+    - boot:vc-firmware

@@ -5,3 +5,4 @@ hw:device:rpi:pi3:
     - hw:storage:sd
     - hw:wlan:broadcom
     - hw:bluetooth:broadcom
+    - boot:vc-firmware
