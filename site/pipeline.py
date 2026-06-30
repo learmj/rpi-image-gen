@@ -51,7 +51,14 @@ def _pipeline_main(args):
     # Extract capability overrides before seeding the environment — this is a
     # reserved key, not an IGconf_* variable, and must not enter os.environ.
     cap_overrides_raw = assignments.pop('_IG_CAPABILITY_OVERRIDES', None)
-    capability_overrides = json.loads(cap_overrides_raw) if cap_overrides_raw else {}
+    if cap_overrides_raw:
+        try:
+            capability_overrides = json.loads(cap_overrides_raw)
+        except json.JSONDecodeError as exc:
+            log_error(f"Error: malformed _IG_CAPABILITY_OVERRIDES in env file: {exc}")
+            raise SystemExit(1)
+    else:
+        capability_overrides = {}
 
     # Seed environment with incoming assignments, but do not override any
     # pre-existing values (e.g., CLI overrides passed through the wrapper).
@@ -65,9 +72,13 @@ def _pipeline_main(args):
 
     igroot = os.environ.get('IGTOP', '')
     srcroot = os.environ.get('SRCROOT', '')
-    cap_dirs = [os.path.join(igroot, 'capability')] if igroot else []
-    if srcroot and srcroot != igroot:
-        cap_dirs.append(os.path.join(srcroot, 'capability'))
+    seen_cap = set()
+    cap_dirs = []
+    for root in filter(None, [igroot, srcroot]):
+        d = os.path.join(root, 'capability')
+        if os.path.realpath(d) not in seen_cap:
+            seen_cap.add(os.path.realpath(d))
+            cap_dirs.append(d)
 
     try:
         manager = LayerManager(search_paths, ['*.yaml'], fail_on_lint=True,
@@ -251,7 +262,7 @@ def _apply_layers(
 ) -> OrderedDict[str, str]:
     variable_definitions = _collect_variable_definitions(manager, build_order)
     resolver = VariableResolver()
-    resolved_variables = resolver.resolve(variable_definitions)
+    resolved_variables = resolver.resolve(variable_definitions, manager.provider_index)
 
     applied: "OrderedDict[str, str]" = OrderedDict()
     ordered_vars = sorted(resolved_variables.values(), key=lambda env_var: env_var.position)
@@ -388,6 +399,27 @@ def _validate_resolved(manager: LayerManager, build_order: List[str]) -> bool:
                 )
                 ok = False
 
+    # Include trigger-injected variables so their required/validator checks are
+    # not silently skipped. resolver.resolve() runs the full trigger loop,
+    # including has()-gated triggers evaluated against provider_index.
+    trigger_resolved = resolver.resolve(variable_definitions, manager.provider_index)
+    for var_name, env_var in trigger_resolved.items():
+        if var_name in selected:
+            continue
+        selected[var_name] = env_var
+        current = os.environ.get(env_var.name)
+        if env_var.required and (current is None or current == ""):
+            log_error(f"[FAIL] {env_var.name} - REQUIRED but not set (layer: {env_var.source_layer})")
+            ok = False
+        elif current is not None and env_var.validator:
+            errors = env_var.validate_value(current)
+            if errors:
+                reason = "; ".join(errors)
+                log_error(
+                    f"[FAIL] {env_var.name}={current} (invalid value, reason: {reason}, layer: {env_var.source_layer})"
+                )
+                ok = False
+
     # Validate conflict expressions against resolved variable values.
     import conditions as _cond
 
@@ -408,7 +440,7 @@ def _validate_resolved(manager: LayerManager, build_order: List[str]) -> bool:
                 continue
             seen_exprs.add(expr)
             try:
-                fired = _cond.evaluate(expr, variables)
+                fired = _cond.evaluate(expr, variables, manager.provider_index)
             except ValueError:
                 continue
             if fired:

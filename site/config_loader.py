@@ -452,6 +452,7 @@ def ConfigLoader_register_parser(subparsers):
     parser.add_argument("--no-expand", action="store_true", help="Disable $VAR expansion")
     parser.add_argument("--write-to", metavar="FILE", help="Write variables to file instead of env load")
     parser.add_argument("--overrides", metavar="FILE", help="Override file with key=value pairs")
+    parser.add_argument("-S", "--srcroot", dest="srcroot", metavar="DIR", help="Custom source tree (adds its capability/ to --cap search)")
     parser.add_argument("--gen", action="store_true", help="Generate example .yaml with include syntax")
     parser.add_argument("--cap", metavar="TOKEN", nargs="?", const="", help="Expand a capability token and show its full token set; omit TOKEN to list all")
     parser.set_defaults(func=_main)
@@ -494,10 +495,18 @@ def _show_capability(token: str, args):
     from capability_registry import CapabilityRegistry
 
     igroot = os.environ.get('IGTOP', str(Path(__file__).parent.parent))
-    cap_dirs = [os.path.join(igroot, 'capability')]
-    for srcroot in (args.path.split(':') if getattr(args, 'path', None) else []):
-        if srcroot.strip():
-            cap_dirs.append(os.path.join(srcroot.strip(), 'capability'))
+    seen_cap = set()
+    cap_dirs = []
+    for root in filter(None, [
+        igroot,
+        getattr(args, 'srcroot', None) or '',
+        *(s.strip() for s in (args.path.split(':') if getattr(args, 'path', None) else [])),
+    ]):
+        d = os.path.join(root, 'capability')
+        r = os.path.realpath(d)
+        if r not in seen_cap:
+            seen_cap.add(r)
+            cap_dirs.append(d)
 
     try:
         registry = CapabilityRegistry(cap_dirs)
