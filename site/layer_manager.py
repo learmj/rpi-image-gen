@@ -568,6 +568,38 @@ class LayerManager:
         # Index all providers for the build set and check for conflicts
         self._index_providers(build_order)
 
+        # Evaluate conditional requires against the provider index (first-order only:
+        # conditions are resolved against unconditionally-pulled providers).
+        import conditions as _cond
+        order_len_before = len(build_order)
+        for layer_name in list(build_order):
+            layer_info = self.get_layer_info(layer_name)
+            if not layer_info:
+                continue
+            for dep_name, condition in layer_info.get('conditional_deps', []):
+                try:
+                    fired = _cond.evaluate(condition, {}, self.provider_index)
+                except ValueError:
+                    fired = False
+                if not fired:
+                    continue
+                if dep_name not in self._name_to_versions:
+                    raise ValueError(
+                        f"Layer '{layer_name}' conditional dependency '{dep_name}' not found"
+                    )
+                # Insert dep and its transitive deps immediately before their requirer.
+                before = len(build_order)
+                add_layer_and_deps(dep_name)
+                new_layers = build_order[before:]
+                if new_layers:
+                    del build_order[before:]
+                    pos = build_order.index(layer_name)
+                    for i, new_layer in enumerate(new_layers):
+                        build_order.insert(pos + i, new_layer)
+
+        if len(build_order) > order_len_before:
+            self._index_providers(build_order)
+
         # Apply AfterProvider ordering constraints
         build_order = self._apply_provider_ordering(build_order)
 

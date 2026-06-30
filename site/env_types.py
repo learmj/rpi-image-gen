@@ -508,6 +508,7 @@ class EnvLayer:
 
     def __init__(self, name: str, description: str = "", version: str = "1.0.0",
                  category: str = "general", deps: List[str] = None,
+                 conditional_deps: List[tuple] = None,
                  provides: List[str] = None, requires_provider: List[str] = None,
                  after_provider: List[str] = None,
                  conflicts: List[str] = None, layer_type: str = "static",
@@ -518,6 +519,7 @@ class EnvLayer:
         self.version = version
         self.category = category
         self.deps = deps or []
+        self.conditional_deps: List[tuple] = conditional_deps or []  # [(layer_name, condition)]
         self.provides = provides or []
         self.requires_provider = requires_provider or []
         self.after_provider = after_provider or []
@@ -551,7 +553,7 @@ class EnvLayer:
 
         # Parse dependency lists
         requires_str = metadata_dict.get(XEnv.layer_requires(), "")
-        requires = cls._parse_dependency_list(requires_str, doc_mode)
+        requires, conditional_deps = cls._parse_requires(requires_str, doc_mode)
 
         provides_str = metadata_dict.get(XEnv.layer_provides(), "")
         provides = cls._parse_dependency_list(provides_str, doc_mode)
@@ -584,6 +586,7 @@ class EnvLayer:
             version=version,
             category=category,
             deps=requires,
+            conditional_deps=conditional_deps,
             provides=provides,
             requires_provider=requires_provider,
             after_provider=after_provider,
@@ -593,6 +596,53 @@ class EnvLayer:
             config_file=config_file,
             sets=sets,
         )
+
+    @staticmethod
+    def _parse_requires(requires_str: str, doc_mode: bool = False) -> "Tuple[List[str], List[tuple]]":
+        """Parse X-Env-Layer-Requires into unconditional and conditional dep lists.
+
+        Tokens of the form 'name when=expr' are conditional: they appear in the
+        returned conditional list as (name, expr) and are only pulled into the
+        build if expr evaluates to True against the provider index.  All other
+        tokens are unconditional and returned in the first list.
+        """
+        if not requires_str.strip():
+            return [], []
+
+        import re
+        import conditions as _cond
+
+        unconditional: List[str] = []
+        conditional: List[tuple] = []
+
+        for dep in requires_str.split(','):
+            token = dep.strip()
+            if not token:
+                continue
+
+            if ' when=' in token:
+                layer_part, condition = token.split(' when=', 1)
+                layer_name = layer_part.strip()
+                condition = condition.strip()
+
+                if re.search(r'\s', layer_name):
+                    raise ValueError(
+                        f"Invalid layer name '{layer_name}' in conditional requires"
+                    )
+                if not (doc_mode and '${' in layer_name):
+                    if not re.match(r'^[A-Za-z0-9_:\-]+$', layer_name):
+                        raise ValueError(
+                            f"Invalid layer name '{layer_name}' in conditional requires"
+                            f" — only alphanum, dash, underscore, colon allowed"
+                        )
+                _cond.validate(condition)
+                conditional.append((layer_name, condition))
+            else:
+                unconditional.append(token)
+
+        # Validate unconditional tokens via the existing method
+        unconditional = EnvLayer._parse_dependency_list(','.join(unconditional), doc_mode) if unconditional else []
+        return unconditional, conditional
 
     @staticmethod
     def _parse_dependency_list(depends_str: str, doc_mode: bool = False) -> List[str]:
@@ -710,6 +760,7 @@ class EnvLayer:
             "type": self.layer_type,
             "generator": self.generator,
             "depends": self.deps,
+            "conditional_deps": self.conditional_deps,
             "optional_depends": [],  # Not currently supported
             "conflicts": self.conflicts,
             "config_file": self.config_file,
@@ -840,7 +891,8 @@ class VariableResolver:
     def __init__(self):
         pass
 
-    def resolve(self, variable_definitions: Dict[str, List[EnvVariable]]) -> Dict[str, EnvVariable]:
+    def resolve(self, variable_definitions: Dict[str, List[EnvVariable]],
+               provider_index: Optional[Dict[str, Any]] = None) -> Dict[str, EnvVariable]:
         """
         Resolve variables and trigger injections until the injected set reaches
         a stable fixed point.
@@ -852,7 +904,7 @@ class VariableResolver:
 
         for _ in range(max_iterations):
             resolved = self._resolve_pass(current_defs)
-            trigger_defs = self._collect_trigger_definitions(resolved)
+            trigger_defs = self._collect_trigger_definitions(resolved, provider_index)
             next_defs = self._merge_base_and_triggers(base_defs, trigger_defs)
             next_signature = self._definition_map_signature(next_defs)
             if next_signature == current_signature:
@@ -1014,7 +1066,8 @@ class VariableResolver:
                 merged.append(conflict)
         return merged
 
-    def _collect_trigger_definitions(self, resolved: Dict[str, EnvVariable]) -> Dict[str, List[EnvVariable]]:
+    def _collect_trigger_definitions(self, resolved: Dict[str, EnvVariable],
+                                     provider_index: Optional[Dict[str, Any]] = None) -> Dict[str, List[EnvVariable]]:
         """Build trigger-sourced definitions based on resolved values."""
         trigger_defs: Dict[str, List[EnvVariable]] = {}
         for env_var in resolved.values():
@@ -1023,6 +1076,7 @@ class VariableResolver:
                     rule.condition,
                     resolved,
                     env_var.source_layer,
+                    provider_index,
                 ):
                     continue
                 if rule.action != "set":
@@ -1058,6 +1112,7 @@ class VariableResolver:
         condition: str,
         resolved: Dict[str, EnvVariable],
         source_layer: Optional[str] = None,
+        provider_index: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Evaluate a trigger condition expression against resolved variables.
@@ -1082,7 +1137,7 @@ class VariableResolver:
 
         layer_note = f" (layer: {source_layer})" if source_layer else ""
         try:
-            return _cond.evaluate(condition, variables)
+            return _cond.evaluate(condition, variables, provider_index)
         except ValueError as e:
             raise ValueError(f"{e}{layer_note}") from e
 
