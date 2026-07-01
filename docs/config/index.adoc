@@ -463,6 +463,22 @@ rpi-image-gen config myconfig.yaml --no-expand
 rpi-image-gen config myconfig.yaml --section device --write-to build.env -- IGconf_device_class=pi5
 ----
 
+=== Capability Registry
+
+The `--cap` flag queries the capability token registry without running a build. See link:../layer/capabilities.adoc[Capability Tokens] for full details of the registry and token system.
+
+[source,bash]
+----
+# List all tokens in the capability registry
+rpi-image-gen config --cap
+
+# Expand a single token — shows the full resolved set that declaring it would inject
+rpi-image-gen config --cap hw:soc:bcm2712
+
+# Include tokens from a custom SRCROOT
+rpi-image-gen config -S ./my-board --cap
+----
+
 === Config Generation
 
 Generate an example YAML configuration:
