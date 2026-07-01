@@ -67,7 +67,7 @@ def md2html(content: str, format: str = 'asciidoc') -> str:
 
     # Post-process: convert .adoc links to .html for web navigation
     import re
-    html_output = re.sub(r'href="([^"]+)\.adoc"', r'href="\1.html"', html_output)
+    html_output = re.sub(r'href="([^"]+)\.adoc(#[^"]*)?"', r'href="\1.html\2"', html_output)
     return html_output
 
 
@@ -224,6 +224,22 @@ def main():
         print(f"Generated: {index_file}")
 
 
+
+        # Generate capabilities page
+        cap_adoc = script_dir / 'layer' / 'capabilities.adoc'
+        if cap_adoc.exists():
+            cap_content = md2html(cap_adoc.read_text())
+        else:
+            raise Exception("No content for capabilities page!")
+
+        cap_html = index_template.render(
+            content=cap_content,
+            layers=[]
+        )
+
+        cap_file = layer_dir / 'capabilities.html'
+        cap_file.write_text(cap_html)
+        print(f"Generated: {cap_file}")
 
         # Generate layer index page
         layer_index_md = script_dir / 'layer' / 'index.adoc'

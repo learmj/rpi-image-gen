@@ -158,9 +158,20 @@ This enables dynamic layer dependency resolution based on build-time variables s
 Only variables present in the environment can be used in dependencies.
 ====
 
+A layer dependency can be made conditional by appending `when=<expr>` to the layer name, where `<expr>` is a conditional expression as described in <<conditional-expressions>>:
+
+[source,yaml]
+----
+# X-Env-Layer-Requires: bt-firmware when=has('hw:bluetooth'),rpi-eeprom when=has('hw:eeprom:rpi')
+----
+
+If the condition evaluates to false at build-order resolution time the dependency is not added to the build. Unconditional and conditional entries may be mixed freely in the same field. See link:capabilities.adoc#_in_conditional_layer_dependencies[Capability Tokens - conditional layer dependencies] for important constraints on what tokens can safely be used as conditions.
+
 ==== X-Env-Layer-Provides / X-Env-Layer-RequiresProvider / X-Env-Layer-AfterProvider
 
-`X-Env-Layer-Provides` declares one or more capability tokens that this layer makes available to the rest of the build. Other layers reference these tokens rather than a specific layer name, which keeps the dependency abstract and substitutable.
+`X-Env-Layer-Provides` declares one or more provider tokens that this layer makes available to the rest of the build. Other layers reference these tokens rather than a specific layer name, which keeps the dependency abstract and substitutable.
+
+Provider tokens fall into two classes. **Label tokens** are plain identifiers with no colon (`systemd`). **Capability tokens** contain a colon (`hw:bluetooth`) and are validated against the capability registry. See link:capabilities.adoc[Capability Tokens] for full details.
 
 All fields share the same capability contract model:
 
@@ -232,17 +243,21 @@ Conditional expressions are supported in trigger `when=` clauses and conflict ex
 
 [cols="1,3",options="header"]
 |===
-|Operator |Example
+|Operator / Function |Example
 
-|`==`     |`IGconf_device_class == 'pi5'`
-|`!=`     |`IGconf_device_user1pass != ''`
-|`in`     |`IGconf_device_class in ['pi4', 'cm4', 'pi5', 'cm5']`
-|`not in` |`IGconf_device_class not in ['zero2w']`
-|`and`    |`IGconf_a == 'x' and IGconf_b == 'y'`
-|`or`     |`IGconf_a == 'x' or IGconf_b == 'y'`
+|`==`               |`IGconf_device_class == 'pi5'`
+|`!=`               |`IGconf_device_user1pass != ''`
+|`in`               |`IGconf_device_class in ['pi4', 'cm4', 'pi5', 'cm5']`
+|`not in`           |`IGconf_device_class not in ['zero2w']`
+|`and`              |`IGconf_a == 'x' and IGconf_b == 'y'`
+|`or`               |`IGconf_a == 'x' or IGconf_b == 'y'`
+|`has('token')`     |`has('hw:bluetooth')`
+|`not has('token')` |`not has('hw:bluetooth')`
 |===
 
 To check for a non-empty value, use `!= ''`. Syntax errors and unknown variable references are caught at lint time, not at build time.
+
+`has('token')` checks whether a capability or label token is present in the provider index. See link:capabilities.adoc[Capability Tokens] for full details.
 
 === Triggers
 
