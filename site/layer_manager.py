@@ -17,7 +17,7 @@ from metadata_parser import Metadata
 from metadata_parser import print_env_var_descriptions
 
 from logger import log_warning, log_failure, log_error, log_info
-from capability_registry import provider_token_type
+from trait_registry import provider_token_type
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,7 @@ class LayerManager:
         doc_mode: bool = False,
         fail_on_lint: bool = False,
         cap_dirs: Optional[List[str]] = None,
-        capability_overrides: Optional[Dict[str, Any]] = None,
+        trait_overrides: Optional[Dict[str, Any]] = None,
     ):
         if search_paths is None:
             search_paths = ['./layer']
@@ -62,11 +62,11 @@ class LayerManager:
         self.generated_root: Optional[Path] = None
         self.load_errors: Dict[str, str] = {}
         self.pending_generators: Dict[Tuple[str, str], tuple] = {}  # (layer_name, version) -> (cmd, input, output)
-        self._capability_overrides: Dict[str, Any] = capability_overrides or {}
+        self._trait_overrides: Dict[str, Any] = trait_overrides or {}
         self._registry = None
         if cap_dirs:
-            from capability_registry import CapabilityRegistry
-            self._registry = CapabilityRegistry(cap_dirs)
+            from trait_registry import TraitRegistry
+            self._registry = TraitRegistry(cap_dirs)
 
         for path in self.search_paths:
             if not path.exists():
@@ -145,15 +145,15 @@ class LayerManager:
     def _index_providers(self, build_order: List[str]) -> None:
         """Index all provider tokens for the build set into provider_index.
 
-        Labels are checked for duplicates and added directly. Capability tokens
+        Labels are checked for duplicates and added directly. Trait tokens
         are validated against the registry, checked for direct-declaration
         duplicates, then expanded (hierarchy + implies) into the index.
-        Only the directly-declared capability token is checked for duplicates —
+        Only the directly-declared trait token is checked for duplicates —
         two layers declaring different tokens that share an expanded ancestor
         (e.g. hw:wlan:broadcom + hw:wlan:mediatek both expanding to hw:wlan)
         is valid and supports multi-adapter boards. This relies on expand()
         always including the declared token itself in its output.
-        Capability overrides from the build config are applied last.
+        Trait overrides from the build config are applied last.
         """
         self.provider_index.clear()
 
@@ -179,7 +179,7 @@ class LayerManager:
                     self.provider_index[prov] = lname
                 else:
                     if not self._registry:
-                        raise ValueError("Build includes capability tokens but no capability registry is loaded")
+                        raise ValueError("Build includes trait tokens but no trait registry is loaded")
                     if prov not in self._registry:
                         unknown.setdefault(lname, []).append(prov)
                         continue
@@ -187,21 +187,21 @@ class LayerManager:
                         self.provider_index.setdefault(token, lname)
 
         if unknown:
-            msgs = [f"{lname}: declares unknown capabilities {tokens}" for lname, tokens in sorted(unknown.items())]
+            msgs = [f"{lname}: declares unknown traits {tokens}" for lname, tokens in sorted(unknown.items())]
             raise ValueError('\n'.join(msgs))
 
-        for token, value in self._capability_overrides.items():
+        for token, value in self._trait_overrides.items():
             if value is False:
                 to_remove = [t for t in self.provider_index
                              if t == token or t.startswith(token + ':')]
                 if not to_remove:
-                    log_warning(f"capability override: '{token}' not in provider index")
+                    log_warning(f"trait override: '{token}' not in provider index")
                 for t in to_remove:
                     self.provider_index.pop(t)
             elif value is True:
                 if self._registry and token not in self._registry:
                     raise ValueError(
-                        f"capability override: '{token}' is not defined in the capability registry"
+                        f"trait override: '{token}' is not defined in the trait registry"
                     )
                 parts = token.split(':')
                 for i in range(2, len(parts) + 1):
@@ -611,7 +611,7 @@ class LayerManager:
     def _validate_provider_requirements(self, build_order: List[str]) -> None:
         """Validate that all required providers are satisfied by the build set.
         Must be called after _index_providers() — uses provider_index directly,
-        which includes expanded capability ancestors."""
+        which includes expanded trait ancestors."""
         for layer_name in build_order:
             layer_info = self.get_layer_info(layer_name)
             if layer_info:
@@ -625,7 +625,7 @@ class LayerManager:
 
     def _apply_provider_ordering(self, build_order: List[str]) -> List[str]:
         """Stable-sort build_order so each AfterProvider consumer follows its provider."""
-        # Software provider tokens only — capability tokens are rejected in
+        # Software provider tokens only — trait tokens are rejected in
         # AfterProvider at parse time (env_types.py), so none will appear here.
         cap_to_layer = {}
         for layer_name in build_order:
@@ -634,7 +634,7 @@ class LayerManager:
                 for cap in layer_info.get('provides', []):
                     cap_to_layer[cap] = layer_name
 
-        # Collect AfterProvider ordering, store the capability token for diagnostics.
+        # Collect AfterProvider ordering, store the provider token for diagnostics.
         # Missing providers are skipped - _validate_provider_requirements already checked
         rp_edges: Dict[Tuple[str, str], str] = {}  # (provider, consumer) -> cap
         for layer_name in build_order:
@@ -651,7 +651,7 @@ class LayerManager:
 
         # Build the combined constraint graph (Requires + AfterProvider edges) so that
         # the algo detects impossible relationships, eg B Requires A while A
-        # uses AfterProvider on a capability that B provides.
+        # uses AfterProvider on a token that B provides.
         must_precede: Dict[str, Set[str]] = {layer: set() for layer in build_order}
         for layer_name in build_order:
             layer_info = self.get_layer_info(layer_name)

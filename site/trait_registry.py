@@ -8,14 +8,14 @@ TOKEN_RE = re.compile(r'^[a-z][a-z0-9]*(?::[a-z][a-z0-9-]*)+$')
 
 
 def provider_token_type(token: str) -> str:
-    """Return 'capability' for namespaced tokens (containing ':'), 'label' otherwise."""
-    return 'capability' if ':' in token else 'label'
+    """Return 'trait' for namespaced tokens (containing ':'), 'label' otherwise."""
+    return 'trait' if ':' in token else 'label'
 
 
 
-class CapabilityRegistry:
+class TraitRegistry:
     """
-    Loads capability token definitions from one or more capability/ directories.
+    Loads trait token definitions from one or more trait/ directories.
 
     Directories are scanned in order — pass standard SRCROOT first so that
     built-in tokens are defined before user/OEM extensions that imply them.
@@ -107,7 +107,7 @@ class CapabilityRegistry:
         try:
             jsonschema.validate(data, schema)
         except jsonschema.ValidationError as e:
-            raise ValueError(f"Capability registry schema validation failed: {e.message}")
+            raise ValueError(f"Trait registry schema validation failed: {e.message}")
 
     def expand(self, token: str) -> Dict[str, str]:
         if token not in self._tokens:

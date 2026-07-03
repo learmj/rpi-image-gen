@@ -16,7 +16,7 @@ class ConfigLoader:
         self.file_format = self._detect_format()
 
         self.data: Dict[str, Dict[str, str]] = {}
-        self.capability_overrides: Dict[str, Any] = {}
+        self.trait_overrides: Dict[str, Any] = {}
         self.overrides: Dict[str, str] = {}
 
         self._load()
@@ -85,17 +85,17 @@ class ConfigLoader:
             if not isinstance(yaml_data, dict):
                 raise ValueError(f"YAML file {path} must contain a mapping at root level")
 
-            # Extract capability section — pass-through, not converted to IGconf_* variables
-            capability_here: Dict[str, Any] = {}
-            if 'capability' in yaml_data:
-                cap_data = yaml_data.pop('capability')
+            # Extract trait section — pass-through, not converted to IGconf_* variables
+            trait_here: Dict[str, Any] = {}
+            if 'trait' in yaml_data:
+                cap_data = yaml_data.pop('trait')
                 if not isinstance(cap_data, dict):
-                    raise ValueError(f"'capability' section in {path} must be a mapping")
-                capability_here = cap_data
+                    raise ValueError(f"'trait' section in {path} must be a mapping")
+                trait_here = cap_data
 
             # Handle include directive
             included_sections: Dict[str, Dict[str, str]] = {}
-            included_capability: Dict[str, Any] = {}
+            included_trait: Dict[str, Any] = {}
             if 'include' in yaml_data and isinstance(yaml_data['include'], list):
                 raise ValueError(
                     f"List includes are not supported in {path}"
@@ -105,7 +105,7 @@ class ConfigLoader:
                 if not inc_file:
                     raise ValueError(f"YAML include directive in {path} missing 'file' key")
                 inc_path = self._resolve_include(inc_file, path.parent)
-                included_sections, included_capability = _load_yaml_recursive(inc_path, visited)
+                included_sections, included_trait = _load_yaml_recursive(inc_path, visited)
                 yaml_data.pop('include', None)
 
             # Convert current file sections
@@ -133,10 +133,10 @@ class ConfigLoader:
                             )
                     merged[sect][k] = v
 
-            # Merge capability: current file overrides included
-            return merged, {**included_capability, **capability_here}
+            # Merge trait: current file overrides included
+            return merged, {**included_trait, **trait_here}
 
-        self.data, self.capability_overrides = _load_yaml_recursive(Path(self.cfg_path).resolve(), set())
+        self.data, self.trait_overrides = _load_yaml_recursive(Path(self.cfg_path).resolve(), set())
 
     def _load_overrides(self):
         """Load override file with key=value pairs and expand variables"""
@@ -367,10 +367,10 @@ class ConfigLoader:
                     # For override-only variables, write them directly
                     self._write_override_only_var(f, override_key, section)
 
-            # Serialise capability overrides as a reserved JSON-encoded key so
+            # Serialise trait overrides as a reserved JSON-encoded key so
             # pipeline.py can reconstruct them without re-parsing the config YAML.
-            if self.capability_overrides:
-                f.write(f'_IG_CAPABILITY_OVERRIDES={json.dumps(self.capability_overrides, separators=(",", ":"))}\n')
+            if self.trait_overrides:
+                f.write(f'_IG_TRAIT_OVERRIDES={json.dumps(self.trait_overrides, separators=(",", ":"))}\n')
 
     def _write_override_only_var(self, file_handle, override_key: str, section_filter: Optional[str]):
         """Write an override-only variable that doesn't exist in config file"""
@@ -452,9 +452,9 @@ def ConfigLoader_register_parser(subparsers):
     parser.add_argument("--no-expand", action="store_true", help="Disable $VAR expansion")
     parser.add_argument("--write-to", metavar="FILE", help="Write variables to file instead of env load")
     parser.add_argument("--overrides", metavar="FILE", help="Override file with key=value pairs")
-    parser.add_argument("-S", "--srcroot", dest="srcroot", metavar="DIR", help="Custom source tree (adds its capability/ to --cap search)")
+    parser.add_argument("-S", "--srcroot", dest="srcroot", metavar="DIR", help="Custom source tree (adds its trait/ to --trait search)")
     parser.add_argument("--gen", action="store_true", help="Generate example .yaml with include syntax")
-    parser.add_argument("--cap", metavar="TOKEN", nargs="?", const="", help="Expand a capability token and show its full token set; omit TOKEN to list all")
+    parser.add_argument("--trait", metavar="TOKEN", nargs="?", const="", help="Expand a trait token and show its full token set; omit TOKEN to list all")
     parser.set_defaults(func=_main)
 
 
@@ -463,12 +463,12 @@ def _main(args):
         _generate_boilerplate()
         return
 
-    if args.cap is not None:
-        _show_capability(args.cap, args)
+    if args.trait is not None:
+        _show_trait(args.trait, args)
         return
 
     if not args.cfg_path:
-        print("Error: cfg_path is required unless --gen or --cap is used", file=sys.stderr)
+        print("Error: cfg_path is required unless --gen or --trait is used", file=sys.stderr)
         return
 
     try:
@@ -490,9 +490,9 @@ def _main(args):
         raise SystemExit(1)
 
 
-def _show_capability(token: str, args):
+def _show_trait(token: str, args):
     import os
-    from capability_registry import CapabilityRegistry
+    from trait_registry import TraitRegistry
 
     igroot = os.environ.get('IGTOP', str(Path(__file__).parent.parent))
     seen_cap = set()
@@ -502,14 +502,14 @@ def _show_capability(token: str, args):
         getattr(args, 'srcroot', None) or '',
         *(s.strip() for s in (args.path.split(':') if getattr(args, 'path', None) else [])),
     ]):
-        d = os.path.join(root, 'capability')
+        d = os.path.join(root, 'trait')
         r = os.path.realpath(d)
         if r not in seen_cap:
             seen_cap.add(r)
             cap_dirs.append(d)
 
     try:
-        registry = CapabilityRegistry(cap_dirs)
+        registry = TraitRegistry(cap_dirs)
         tokens = registry.all_tokens if not token else registry.expand(token)
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)

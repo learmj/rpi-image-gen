@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "rpi-image-gen capability registry",
-  "description": "Capability token registry. Applied to the fully resolved registry after include processing.",
+  "title": "rpi-image-gen trait registry",
+  "description": "Trait token registry. Applied to the fully resolved registry after include processing.",
   "type": "object",
   "propertyNames": {
     "pattern": "^[a-z][a-z0-9]*(?::[a-z][a-z0-9-]*)+$"

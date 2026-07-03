@@ -1,4 +1,4 @@
-= Capability Tokens
+= Trait Tokens
 :toc: left
 :toclevels: 3
 :sectlinks:
@@ -8,9 +8,17 @@ link:index.adoc[← Back to Layer Documentation]
 
 == Overview
 
-Capability tokens are a class of provider token that carry hardware, system trait and boot mechanism facts through the build engine. They allow layers and build configs to express characteristic-aware logic such as selecting crypto cipher based on acceleration, conditionally pulling in firmware layers, or gating a layer entirely on a hardware requirement - without enumerating specific device classes.
+Hardware components and build-time features are abstracted into semantic tokens called _traits_, e.g. `hw:bluetooth:broadcom`. rpi-image-gen evaluates the traits declared for a target to conditionally include specific packages and layers, define build-time features, or change run-time behaviour of the device image.
 
-Capability tokens flow through the same provider mechanism as plain label tokens (`X-Env-Layer-Provides`, `X-Env-Layer-RequiresProvider`) and are evaluated by the same `has()` function used in trigger `when=` clauses, conflict expressions, and conditional layer requires.
+A trait is defined by three properties:
+
+* *Fixed characteristic* - a hardware component that is present, or a build choice that has been made
+* *Passive marker* - flags the presence of a characteristic so the build can make decisions; it does not invoke behaviour itself
+* *Composition* - a target's trait set is an aggregated collection of individually declared traits
+
+Trait tokens are a class of provider token that carry hardware, system and boot mechanism facts through the build engine. They allow layers and build configs to express characteristic-aware logic such as selecting crypto cipher based on acceleration, conditionally pulling in firmware layers, or gating a layer entirely on a hardware requirement - without enumerating specific device classes.
+
+Trait tokens flow through the same provider mechanism as plain label tokens (`X-Env-Layer-Provides`, `X-Env-Layer-RequiresProvider`) and are evaluated by the same `has()` function used in trigger `when=` clauses, conflict expressions, and conditional layer requires.
 
 == Token Taxonomy
 
@@ -18,22 +26,22 @@ Provider tokens fall into two classes, distinguished by the presence of a colon.
 
 **Label tokens** - plain identifiers with no colon (`systemd`, `debian-base`, `rpi-device`, `network-activator`). Arbitrary strings with no registry involvement. Any layer may declare a label token, and a conflict between two layers declaring the same label is always an error.
 
-**Capability tokens** - colon-separated, namespaced identifiers (`hw:bluetooth`, `boot:gpt`, `hw:soc:bcm2712`). Must be defined in the capability registry, or declared by the build config file. Declaring a capability token triggers automatic expansion, hierarchical parent inference and `implies:` resolution (see <<_capability_expansion>>).
+**Trait tokens** - colon-separated, namespaced identifiers (`hw:bluetooth`, `boot:gpt`, `hw:soc:bcm2712`). Must be defined in the trait registry, or declared by the build config file. Declaring a trait token triggers automatic expansion, hierarchical parent inference and `implies:` resolution (see <<_trait_expansion>>).
 
-The colon is the sole discriminator. The engine uses its presence to decide whether to validate against the registry and whether to perform expansion. Capability token names are deliberately shell incompatible - colons are not valid in shell variable names. This makes it impossible to reference them in hooks or scripts. This is intentional. Do not work around it by replacing colons with underscores.
+The colon is the sole discriminator. The engine uses its presence to decide whether to validate against the registry and whether to perform expansion. Trait token names are deliberately shell incompatible - colons are not valid in shell variable names. This makes it impossible to reference them in hooks or scripts. This is intentional. Do not work around it by replacing colons with underscores.
 
 == Namespaces
 
-The capability registry will grow over time. Its current primary use is to describe hardware and boot facts, such as:
+The trait registry will grow over time. Its current primary use is to describe hardware and boot facts, such as:
 
-`hw:*`:: Hardware presence facts - silicon capabilities, onboard peripherals, accessible interfaces. A fact about what the hardware is and has, independent of whether any software in the build uses it.
+`hw:*`:: Hardware presence facts - silicon traits, onboard peripherals, accessible interfaces. A fact about what the hardware is and has, independent of whether any software in the build uses it.
 
 `boot:*`:: Boot mechanism facts - how the device boots, what the boot chain requires.
 
-[[_capability_expansion]]
-== Capability Expansion
+[[_trait_expansion]]
+== Trait Expansion
 
-Declaring a capability token triggers two automatic expansions, both resolved against the registry.
+Declaring a trait token triggers two automatic expansions, both resolved against the registry.
 
 === Hierarchical parent inference
 
@@ -43,18 +51,18 @@ Declaring `hw:X:Y` automatically also declares `hw:X`. Declaring `hw:wlan:broadc
 
 A registry entry may carry an `implies:` list of additional tokens to inject when that token is declared. This handles cross-feature associations that the hierarchy cannot capture. For example, declaring `hw:soc:bcm2712` cascades into `hw:arch:armv8`, `hw:crypto:aes-accel`, and `hw:crypto:sha-accel` - all facts derivable from the SoC identity without the layer author enumerating them. Implied tokens are themselves subject to hierarchical parent inference.
 
-`hw:pcie` is declared by device capability and not implied by SoC. This is because the same SoC may appear on boards that expose PCIe to the user and on boards that do not. Typically, interface and peripheral accessibility belongs on device capabilities whereas SoC `implies:` covers silicon-intrinsic capabilities only.
+`hw:pcie` is declared by device trait and not implied by SoC. This is because the same SoC may appear on boards that expose PCIe to the user and on boards that do not. Typically, interface and peripheral accessibility belongs on device traits whereas SoC `implies:` covers silicon-intrinsic traits only.
 
-== The Capability Registry
+== The Trait Registry
 
-The registry is a set of YAML files scanned from `capability/*.yaml`. The built-in capability root is scanned first followed by the user's SRCROOT (if supplied). Within each directory, files are loaded in lexical order. Standard tokens are therefore always present before any user-defined tokens allowing them to be referenced. Attempting to override a built-in token will result in an error. Attempting to reference a token that has not been declared will also result in an error.
+The registry is a set of YAML files scanned from `trait/*.yaml`. The built-in trait root is scanned first followed by the user's SRCROOT (if supplied). Within each directory, files are loaded in lexical order. Standard tokens are therefore always present before any user-defined tokens allowing them to be referenced. Attempting to override a built-in token will result in an error. Attempting to reference a token that has not been declared will also result in an error.
 
 === Registry format
 
 [source,yaml]
 ----
 hw:soc:bcm2712:
-  desc: Broadcom BCM2712 SoC — Raspberry Pi 5 / CM5 (quad Cortex-A76)
+  desc: Broadcom BCM2712 SoC - Raspberry Pi 5 / CM5 (quad Cortex-A76)
   implies:
     - hw:arch:armv8
     - hw:crypto:aes-accel
@@ -69,7 +77,7 @@ hw:arch:aarch64:
   desc: AArch64 64-bit execution state (ARMv8-A)
 
 hw:bluetooth:
-  desc: Onboard Bluetooth hardware — HCI interface available to the kernel
+  desc: Onboard Bluetooth hardware - HCI interface available to the kernel
 ----
 
 `desc` is required. `implies:` is optional. All `implies:` targets must themselves be defined in the registry before being referenced.
@@ -83,14 +91,14 @@ include: hw/hw.yaml
 
 === OEM custom tokens
 
-An OEM adds a `capability/*.yaml` file to their SRCROOT. Standard built-in tokens are already loaded - no explicit include of the built-in registry is needed:
+An OEM adds a `trait/*.yaml` file to their SRCROOT. Standard built-in tokens are already loaded - no explicit include of the built-in registry is needed:
 
 [source,yaml]
 ----
-# SRCROOT/capability/myboard.yaml
+# SRCROOT/trait/myboard.yaml
 
 hw:acme:
-  desc: Custom board capability definitions
+  desc: Custom board definitions
 
 hw:acme:can:
   desc: CAN bus controller on this carrier board
@@ -108,12 +116,12 @@ hw:acme:carrierv1:
 
 Unknown tokens used in `implies:` or in `X-Env-Layer-Provides` that are absent from the registry will throw an error at load time. Define all tokens before referencing them.
 
-== Declaring Capabilities on Layers
+== Declaring Traits on Layers
 
 [[_provides]]
 === X-Env-Layer-Provides
 
-Capability tokens are declared in `X-Env-Layer-Provides` alongside plain label tokens. The engine uses the colon discriminator to distinguish them:
+Trait tokens are declared in `X-Env-Layer-Provides` alongside plain label tokens. The engine uses the colon discriminator to distinguish them:
 
 [source,yaml]
 ----
@@ -129,7 +137,7 @@ Declaring `hw:device:rpi:pi5` causes the engine to resolve all `implies:` chains
 
 === X-Env-Layer-RequiresProvider
 
-Declares that a named capability must be present somewhere in the build. The engine validates its existence but imposes no ordering constraint. Use this when a layer is semantically tied to a hardware capability:
+Declares that a named provider token must be present somewhere in the build. The engine validates its existence but imposes no ordering constraint. Use this when a layer is semantically tied to a hardware trait:
 
 [source,yaml]
 ----
@@ -140,15 +148,15 @@ The build is rejected at validation time if no layer in the build (and no config
 
 === AfterProvider restriction
 
-Capability tokens are not permitted in `X-Env-Layer-AfterProvider`. Capabilities express presence - they have no position in the build sequence. The engine rejects capability tokens in `AfterProvider` at parse time with a clear error. Use `RequiresProvider` instead.
+Trait tokens are not permitted in `X-Env-Layer-AfterProvider`. Traits express presence - they have no position in the build sequence. The engine rejects trait tokens in `AfterProvider` at parse time with a clear error. Use `RequiresProvider` instead.
 
-== Capability Presence Checks: `has()`
+== Trait Presence Checks: `has()`
 
 `has('token')` returns `true` if the named token is present in the fully-expanded provider index. `not has('token')` returns `true` if it is absent. Both forms are valid anywhere a conditional expression is accepted.
 
 `has()` resolves against the expanded provider index, so `has('hw:wlan')` is true whether the device declared `hw:wlan` directly, or whether it was inferred because the device declared `hw:wlan:broadcom`, or because `hw:wlan` appeared in an `implies:` chain. The evaluator sees the complete expanded set.
 
-`has()` also works with label tokens. `has('systemd')` returns true if any layer in the build declared `systemd` in `X-Env-Layer-Provides`. Label tokens are indexed alongside capability tokens in the same provider index.
+`has()` also works with label tokens. `has('systemd')` returns true if any layer in the build declared `systemd` in `X-Env-Layer-Provides`. Label tokens are indexed alongside trait tokens in the same provider index.
 
 `has()` is an engine metadata-only construct. It is not available in hooks, scripts, or any shell context.
 
@@ -167,7 +175,7 @@ Layer authors do not need to enumerate device class lists. For example, adding a
 
 === In conflict expressions
 
-Catch an inconsistency between a variant variable and a capability:
+Catch an inconsistency between a variant variable and a trait:
 
 [source,yaml]
 ----
@@ -178,7 +186,7 @@ This fires if a device build configuration specifies a lite variant (eg, a CM5 l
 
 === In conditional layer dependencies
 
-Pull a layer into the dependency chain only when its required capability is present:
+Pull a layer into the dependency chain only when its required trait is present:
 
 [source,yaml]
 ----
@@ -213,11 +221,11 @@ When the engine evaluates conditionals, `token-x` is present so `layer-ext` is p
 
 == Build Config Overrides
 
-The `capability:` top-level key in a build config YAML is the single override point. It takes precedence over anything declared by the registry or by layers.
+The `trait:` top-level key in a build config YAML is the single override point. It takes precedence over anything declared by the registry or by layers.
 
 [source,yaml]
 ----
-capability:
+trait:
   hw:bluetooth: false    # carrier board omits BT antenna
   hw:acme:can: true      # carrier board adds a custom CAN interface
 ----
@@ -226,27 +234,27 @@ capability:
 
 `true`:: Injects the named token as a provider, the same as if a layer had declared it. For example, use this for custom carrier board hardware that has no dedicated layer.
 
-This mechanism is the canonical way to represent carrier board customisations. `capability: hw:bluetooth: false` is a documented policy decision visible in the config file and not a silent omission.
+This mechanism is the canonical way to represent carrier board customisations. `trait: hw:bluetooth: false` is a documented policy decision visible in the config file and not a silent omission.
 
-== CLI: `config --cap`
+== CLI: `config --trait`
 
 List all tokens in the loaded registry:
 
 [source,bash]
 ----
-rpi-image-gen config --cap
+rpi-image-gen config --trait
 ----
 
 Expand a single token to show its full resolved set (the token itself plus all parents and `implies:` descendants):
 
 [source,bash]
 ----
-rpi-image-gen config --cap hw:soc:bcm2712
+rpi-image-gen config --trait hw:soc:bcm2712
 ----
 
 To include tokens from a custom SRCROOT, pass `-S`:
 
 [source,bash]
 ----
-rpi-image-gen config -S ./my-board --cap
+rpi-image-gen config -S ./my-board --trait
 ----

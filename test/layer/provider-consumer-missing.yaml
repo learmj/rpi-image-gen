@@ -1,7 +1,7 @@
 # METABEGIN
 # X-Env-Layer-Name: test-provider-consumer-missing
 # X-Env-Layer-Version: 1.0.0
-# X-Env-Layer-RequiresProvider: nonexist-capability
+# X-Env-Layer-RequiresProvider: nonexist-trait
 # X-Env-Layer-Category: test
 # METAEND
 --- 

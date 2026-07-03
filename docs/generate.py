@@ -225,19 +225,19 @@ def main():
 
 
 
-        # Generate capabilities page
-        cap_adoc = script_dir / 'layer' / 'capabilities.adoc'
+        # Generate traits page
+        cap_adoc = script_dir / 'layer' / 'traits.adoc'
         if cap_adoc.exists():
             cap_content = md2html(cap_adoc.read_text())
         else:
-            raise Exception("No content for capabilities page!")
+            raise Exception("No content for traits page!")
 
         cap_html = index_template.render(
             content=cap_content,
             layers=[]
         )
 
-        cap_file = layer_dir / 'capabilities.html'
+        cap_file = layer_dir / 'traits.html'
         cap_file.write_text(cap_html)
         print(f"Generated: {cap_file}")
 

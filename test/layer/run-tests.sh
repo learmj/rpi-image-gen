@@ -306,13 +306,13 @@ run_test "meta-parse-rejects-invalid-dependency-declaration" \
     1 \
     "Meta parse should perform validation of dependency declaration"
 
-run_test "meta-validate-accepts-capability-provides-tokens" \
-    "ig metadata --validate ${LAYERS}/valid-provides-capability.yaml" \
+run_test "meta-validate-accepts-trait-provides-tokens" \
+    "ig metadata --validate ${LAYERS}/valid-provides-trait.yaml" \
     0 \
-    "Capability provides tokens (cap:hw:*) should be accepted"
+    "Trait provides tokens (cap:hw:*) should be accepted"
 
-run_test "meta-validate-rejects-invalid-capability-provides-fmt" \
-    "ig metadata --validate ${LAYERS}/invalid-provides-capability-fmt.yaml" \
+run_test "meta-validate-rejects-invalid-trait-provides-fmt" \
+    "ig metadata --validate ${LAYERS}/invalid-provides-trait-fmt.yaml" \
     1 \
     "Provides tokens with invalid characters should be rejected"
 
@@ -675,7 +675,7 @@ run_test "provider-missing" \
         --env-out "$TMP_OUT" >/dev/null && \
      rm -rf "$TMP_ENV" "$TMP_OUT" "$TMP_DIR"' \
     1 \
-    "Check should fail when provider capability not available"
+    "Check should fail when provider trait not available"
 
 cleanup_env
 run_test "provider-conflict" \
@@ -702,7 +702,7 @@ EOF
      rm -rf "$TMP_ENV" "$TMP_OUT" "$TMP_DIR"; \
      exit $RESULT' \
     1 \
-    "Check should fail when multiple layers provide the same capability"
+    "Check should fail when multiple layers provide the same trait"
 
 cleanup_env
 run_test "provider-ordering" \

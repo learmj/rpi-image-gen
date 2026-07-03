@@ -1,0 +1,16 @@
+hw:acme:
+  desc: Custom board trait definitions
+
+hw:acme:can:
+  desc: CAN bus controller on this carrier board
+
+hw:acme:gps:
+  desc: GPS modem on this carrier board
+
+hw:acme:carrierv1:
+  desc: Board description
+  implies:
+    - hw:acme:can
+    - hw:acme:gps
+    - hw:device:rpi:cm5-lite
+

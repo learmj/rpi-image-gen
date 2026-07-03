@@ -48,17 +48,17 @@ def _pipeline_main(args):
 
     assignments: OrderedDict[str, str] = load_env_file(args.env_in)
 
-    # Extract capability overrides before seeding the environment — this is a
+    # Extract trait overrides before seeding the environment — this is a
     # reserved key, not an IGconf_* variable, and must not enter os.environ.
-    cap_overrides_raw = assignments.pop('_IG_CAPABILITY_OVERRIDES', None)
+    cap_overrides_raw = assignments.pop('_IG_TRAIT_OVERRIDES', None)
     if cap_overrides_raw:
         try:
-            capability_overrides = json.loads(cap_overrides_raw)
+            trait_overrides = json.loads(cap_overrides_raw)
         except json.JSONDecodeError as exc:
-            log_error(f"Error: malformed _IG_CAPABILITY_OVERRIDES in env file: {exc}")
+            log_error(f"Error: malformed _IG_TRAIT_OVERRIDES in env file: {exc}")
             raise SystemExit(1)
     else:
-        capability_overrides = {}
+        trait_overrides = {}
 
     # Seed environment with incoming assignments, but do not override any
     # pre-existing values (e.g., CLI overrides passed through the wrapper).
@@ -75,14 +75,14 @@ def _pipeline_main(args):
     seen_cap = set()
     cap_dirs = []
     for root in filter(None, [igroot, srcroot]):
-        d = os.path.join(root, 'capability')
+        d = os.path.join(root, 'trait')
         if os.path.realpath(d) not in seen_cap:
             seen_cap.add(os.path.realpath(d))
             cap_dirs.append(d)
 
     try:
         manager = LayerManager(search_paths, ['*.yaml'], fail_on_lint=True,
-                               cap_dirs=cap_dirs, capability_overrides=capability_overrides)
+                               cap_dirs=cap_dirs, trait_overrides=trait_overrides)
     except ValueError as exc:
         log_error(str(exc))
         raise SystemExit(1)

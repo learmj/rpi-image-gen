@@ -16,7 +16,7 @@ defined by the Python language specification:
 
 Supported comparison operators:  ==  !=  in  not in
 Supported boolean operators:     and  or
-Supported capability functions:  has()  not has()
+Supported trait functions:       has()  not has()
 
 Variable names in expressions are resolved from a plain dict[str, str]
 passed in by the caller. The caller is responsible for building that dict
@@ -62,7 +62,7 @@ def validate(condition: str) -> None:
         raise ValueError(f"Invalid condition '{condition}': {e}") from e
     if not isinstance(tree.body, (ast.Compare, ast.BoolOp, ast.Call, ast.UnaryOp)):
         raise ValueError(
-            f"Invalid condition '{condition}': must be a comparison, boolean, or capability expression"
+            f"Invalid condition '{condition}': must be a comparison, boolean, or trait expression"
             f" — e.g. IGconf_x == 'value', IGconf_x in ['a', 'b'], has('hw:bluetooth')"
         )
     _check_node(tree.body, condition)

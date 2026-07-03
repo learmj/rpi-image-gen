@@ -33,7 +33,7 @@ Resolves built-in and source directory root paths, config/layer/exec search path
 
 == site/config_loader.py
 
-Handles reading YAML/INI config files, resolving includes, and writing out the env file that feeds pipeline.
+Handles reading YAML config files, resolving includes, and writing out the env file that feeds pipeline. Extracts the `trait:` section from build config YAML (token overrides: `false` to suppress, `true` to inject) and serialises it into the env file for pipeline to reconstruct. Exposes `--trait [TOKEN]` to inspect the trait registry.
 
 == site/metadata_parser.py
 
@@ -54,6 +54,7 @@ Used by pipeline to perform final variable expansion.
 
 Discovery and introspection of all layers. Walks search roots, parses metadata, maintains the layer registry (self.layers, file paths, tags).
 Provides dependency graph operations (get build order, provider checks, reverse deps), schema checks used by pipeline pre-validation, and the user-facing ig CLI (list, describe, etc).
+Owns provider indexing: label tokens are indexed directly. Trait tokens (colon-discriminated) are validated against the TraitRegistry and expanded transitively via `implies:` and hierarchy. All are merged into the provider index. Trait overrides from the build config are applied last. Conditional `X-Env-Layer-Requires` entries (using `has()`) are evaluated in a single pass after the initial provider index is built.
 
 == site/pipeline.py
 
@@ -61,7 +62,11 @@ Main orchestrator for the application. Loads the base env file produced by confi
 
 == site/conditions.py
 
-Expression parser and evaluator for build-time conditions. Used by both trigger rules and conflict expressions to validate syntax at layer-load time and evaluate conditions against the resolved variable set at build time. Expressions use standard Python comparison syntax. See https://docs.python.org/3/reference/expressions.html#comparisons
+Expression parser and evaluator for build-time conditions. Used by trigger rules, conflict expressions, and conditional `X-Env-Layer-Requires` entries to validate syntax at layer-load time and evaluate conditions at build time. Expressions use standard Python comparison syntax plus the `has('token')` / `not has('token')` functions for provider checks. See https://docs.python.org/3/reference/expressions.html#comparisons
+
+== site/trait_registry.py
+
+Loads and validates trait token definitions from `trait/*.yaml` directories. Provides `TraitRegistry`, which scans directories, resolves `include:` directives, enforces parent token existence, and validates the fully resolved token set against `known.schema.json`.
 
 == site/validators.py
 

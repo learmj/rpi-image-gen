@@ -1,0 +1,12 @@
+# METABEGIN
+# X-Env-Layer-Name: acme-hw1
+# X-Env-Layer-Category: example
+# X-Env-Layer-Desc: Example layer conditionally pulled in based on
+#  trait.
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-RequiresProvider: hw:acme:gps
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - gpsd

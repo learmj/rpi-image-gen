@@ -67,8 +67,8 @@ mmdebstrap:
 - **`X-Env-Layer-Category`**: Categorisation (device, image, etc.)
 - **`X-Env-Layer-Version`**: Version identifier for the layer
 - **`X-Env-Layer-Requires`**: Comma-separated list of required layers
-- **`X-Env-Layer-Provides`**: Services or capabilities this layer provides
-- **`X-Env-Layer-RequiresProvider`**: Services or capabilities this layer requires
+- **`X-Env-Layer-Provides`**: Services or traits this layer provides
+- **`X-Env-Layer-RequiresProvider`**: Services or traits this layer requires
 - **`X-Env-Layer-Conflicts`**: Layers that cannot be used together with this one
 
 ### Dependencies and Providers
@@ -79,9 +79,9 @@ mmdebstrap:
 Example: A device layer depends on a device base-layer because the base-layer provides mandatory settings inherited by the device layer.  
   
 **X-Env-Layer-Provides / X-Env-Layer-RequiresProvider**  
-- Abstract capability requirements - "I need something that provides X"  
-- Service/capability contracts - Multiple layers could satisfy the requirement  
-- Flexible implementation - Any layer providing the capability can fulfill it  
+- Abstract trait requirements - "I need something that provides X"  
+- Service/trait contracts - Multiple layers could satisfy the requirement  
+- Flexible implementation - Any layer providing the trait can fulfil it  
 - Relationships - If a provider is required, only one can exist in the overall configuration  
 Example: A layer requires a device provider, which could be satisfied by different device layers  
 
