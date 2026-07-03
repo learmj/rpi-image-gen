@@ -1,0 +1,4 @@
+trait:
+  hw:ethernet: true
+  hw:pcie: true
+  hw:storage:nvme: true
