@@ -159,6 +159,27 @@ def main():
         print(f"Generated: {index_file}")
 
 
+        # Generate trait page
+        trait_md = doc_dir / 'trait.adoc'
+        if trait_md.exists():
+            md_content = trait_md.read_text()
+            trait_content = md2html(md_content)
+        else:
+            raise Exception("No content for trait page!")
+
+        # Render trait page
+        trait_template = env.get_template('index.html')
+        trait_html = trait_template.render(
+            content=trait_content,
+            layers=[]  # No layers
+        )
+
+        # Write trait page
+        trait_file = doc_dir / 'trait.html'
+        trait_file.write_text(trait_html)
+        print(f"Generated: {trait_file}")
+
+
         # Generate config index page
         index_md = config_dir / 'index.adoc'
         if index_md.exists():
