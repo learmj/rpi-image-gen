@@ -226,6 +226,66 @@ map_path() {
 export -f map_path
 
 
+# Write out a layer's pre config in mmdebstrap keyed YAML at the given path.
+# Optional. Loaded immediately before the layer's own YAML. Use to influence
+# the order of operations when bdebstrap merges all YAML prior to mmdebstrap
+# handoff.
+# $1 = layer name
+# $2 = layer version
+# $3 = layer's static YAML path
+# $4 = path to write the synthesised file to
+synth_layer_pre() {
+   :
+}
+export -f synth_layer_pre
+
+
+# Write out a layer's post config in mmdebstrap keyed YAML at the given path.
+# Optional. Loaded immediately after the layer's own YAML. Use to influence
+# the order of operations when bdebstrap merges all YAML prior to mmdebstrap
+# handoff.
+# $1 = layer name
+# $2 = layer version
+# $3 = layer's static YAML path
+# $4 = path to write the synthesised file to
+synth_layer_post() {
+   :
+}
+export -f synth_layer_post
+
+
+# Filters a layer plan (layer:version:static:resolved per line, same format
+# as the build plan file) down to layers that declare an mmdebstrap:
+# section - layers without one (eg pure trait/device-metadata layers)
+# contribute nothing to the filesystem build and aren't passed to bdebstrap.
+# Every layer's YAML is parsed in a single python process (this runs once
+# per build, not once per layer - a real, measured difference: ~30ms of
+# python startup per layer adds up to 1s+ for a few dozen layers).
+# $1 = plan file path. Caller must have already validated every resolved
+# path exists - a missing or unparsable file here is a hard error (message
+# to stderr, non-zero exit), not something this silently skips.
+filter_mmdebstrap_layers() {
+   python3 -c '
+import sys, pathlib, yaml
+for raw in pathlib.Path(sys.argv[1]).read_text().splitlines():
+    if not raw or raw.startswith("#"):
+        continue
+    parts = raw.split(":", 3)
+    if len(parts) != 4 or not parts[0] or not parts[3]:
+        continue
+    layer, version, static, resolved = parts
+    try:
+        data = yaml.safe_load(open(resolved, "rb"))
+    except Exception as e:
+        print(f"{resolved}: {e}", file=sys.stderr)
+        sys.exit(2)
+    if isinstance(data, dict) and data.get("mmdebstrap"):
+        print(f"{layer}:{version}:{static}:{resolved}")
+' "$1"
+}
+export -f filter_mmdebstrap_layers
+
+
 # General purpose key=value normaliser that escapes characters that would
 # break shell expansion.
 safe_kv() {
