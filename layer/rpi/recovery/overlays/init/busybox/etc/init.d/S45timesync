@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Set the system clock via openntpd (one-shot)
+#
+
+mkdir -p /var/lib/openntpd/db/ /var/lib/openntpd/run
+
+case "$1" in
+  start)
+  printf "Setting system time: "
+  if ntpd -s >/dev/null 2>&1; then
+    echo "OK ($(date -u))"
+  else
+    echo "FAIL"
+  fi
+  ;;
+  stop)
+  ;;
+  *)
+  echo "Usage: $0 {start|stop}"
+  exit 1
+esac
+

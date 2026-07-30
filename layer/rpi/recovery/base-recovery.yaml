@@ -1,0 +1,188 @@
+# METABEGIN
+# X-Env-Layer-Name: rpi-recovery-base
+# X-Env-Layer-Category: distribution
+# X-Env-Layer-Desc: Disaster recovery/rescue filesystem base, plus tooling
+#  hooks, packing a minimal usable filesystem into a single directory
+#  suitable for post-processing to create bootable media for v8 RPi devices.
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Provides: debian-base,recovery-base,device
+#
+# X-Env-VarPrefix: dri
+#
+# X-Env-Var-initsys: busybox
+# X-Env-Var-initsys-Desc: The init system of choice for the recovery initramfs
+# X-Env-Var-initsys-Required: n
+# X-Env-Var-initsys-Valid: keywords:busybox,systemd
+# X-Env-Var-initsys-Set: force
+#
+# X-Env-Var-initramfs_list: ${DIRECTORY}/initramfs.list.${IGconf_dri_initsys}
+# X-Env-Var-initramfs_list-Desc: Path to a file listing files/directories to
+#  include in the recovery initramfs, one per line, '#' comments allowed.
+#  Resolved via dracut-install, pulling in shared library dependencies
+#  automatically. List only what you want. Not transitive dependencies.
+# X-Env-Var-initramfs_list-Required: n
+# X-Env-Var-initramfs_list-Valid: file-nzero
+# X-Env-Var-initramfs_list-Set: y
+#
+# X-Env-Var-modules_list: ${DIRECTORY}/modules.list
+# X-Env-Var-modules_list-Desc: Path to a file listing kernel modules to
+#  include in the recovery initramfs, one per line, '#' comments allowed.
+#  Resolved via dracut-install, which pulls in module dependencies
+#  automatically. List only what you actually want. Not transitive dependencies.
+# X-Env-Var-modules_list-Required: n
+# X-Env-Var-modules_list-Valid: file-nzero
+# X-Env-Var-modules_list-Set: y
+#
+# X-Env-Var-init_overlay: ${DIRECTORY}/overlays/init/${IGconf_dri_initsys}
+# X-Env-Var-init_overlay-Desc: Filessytem overlay used to seed the recovery
+#  initramfs.
+# X-Env-Var-init_overlay-Required: n
+# X-Env-Var-init_overlay-Valid: dir
+# X-Env-Var-init_overlay-Set: y
+#
+# X-Env-Var-dracut_install_opts: -v
+# X-Env-Var-dracut_install_opts-Desc: Extra command-line flags passed to
+#  every dracut-install invocation. See man(8) dracut.
+# X-Env-Var-dracut_install_opts-Required: n
+# X-Env-Var-dracut_install_opts-Valid: string-or-empty
+# X-Env-Var-dracut_install_opts-Set: y
+#
+# X-Env-Var-dracut_install_env:
+# X-Env-Var-dracut_install_env-Desc: Extra environment variables applied
+#  to every dracut-install invocation, as a space-separated KEY=value list
+#  (eg "DRACUT_LDD=/some/other/ldd DRACUT_NO_XATTR=1"). See man(8) dracut.
+# X-Env-Var-dracut_install_env-Required: n
+# X-Env-Var-dracut_install_env-Valid: string-or-empty
+# X-Env-Var-dracut_install_env-Set: y
+# METAEND
+---
+mmdebstrap:
+  architectures:
+    - arm64
+  mode: auto
+  variant: extract
+  suite: trixie
+  mirrors:
+    - ${IGTOP}/templates/debian/apt/trixie-recovery.sources
+    - ${IGTOP}/templates/debian/apt/rpi-trixie.sources
+  packages:
+    - libc6-udeb
+    - bash
+    - mount
+    - base-files
+    - base-passwd
+    - busybox
+    - linux-image-rpi-v8
+    - raspi-firmware
+    - dracut-install
+    - kmod
+    - coreutils
+    - libc-bin
+    - openntpd
+  extract-hooks:
+    - |-
+      set -u
+      mkdir -p "$1/initramfs-root/proc"
+      mkdir -p "$1/initramfs-root/sys"
+      mkdir -p "$1/initramfs-root/dev/pts"
+      mkdir -p "$1/initramfs-root/tmp"
+      mkdir -p "$1/initramfs-root/run"
+      mkdir -p "$1/staging"
+      mkdir -p "$1/bootfs/overlays"
+    - chroot "$1" ldconfig || true
+    - ln -sf bash "$1/usr/bin/sh"
+    # kernel image install
+    - |-
+      kernel=$(ls "$1"/boot/vmlinuz-* 2>/dev/null | head -n1)
+      [ -n "$kernel" ] || { echo "recovery-base: no kernel image found under /boot" >&2; exit 1; }
+      install -m 0644 "$kernel" "$1/bootfs/kernel8.img"
+    # Seed DTBs and overlays @TODO can fine tune for device
+    - |-
+      ver=$(ls "$1/lib/modules")
+      kdir="$1/usr/lib/linux-image-$ver"
+      [ -d "$kdir" ] || { echo "recovery-base: no linux $ver dir found" >&2; exit 1; }
+      cp -a "$kdir"/broadcom/*.dtb "$1/bootfs/"
+      cp -a "$kdir"/overlays/*.dtb* "$1/bootfs/overlays/"
+    # Install boot firmware if present
+    - |-
+      [ -d "$1/usr/lib/raspi-firmware" ] && cp -a "$1/usr/lib/raspi-firmware/." "$1/bootfs/" || true
+    # Basic config/cmdline txt @TODO probably best supplied via overlay
+    - |-
+      cat > "$1/bootfs/config.txt" <<-'EOF'
+      	[all]
+      	arm_64bit=1
+      	kernel=kernel8.img
+      	initramfs initramfs8 followkernel
+      	EOF
+      cat > "$1/bootfs/cmdline.txt" <<-'EOF'
+      	console=serial0,115200 console=tty1 loglevel=4
+      	EOF
+    # Install seed lists for dracut
+    - |-
+      set -u
+      cp "$IGconf_dri_initramfs_list" "$1/initramfs.list"
+      cp "$IGconf_dri_modules_list" "$1/modules.list"
+    #
+    # Begin staging dir creation
+    - |-
+      set -e
+      if [ "$IGconf_dri_initsys" = "busybox" ] ; then
+        mkdir -p "$1/staging/usr/bin"
+        cp -p "$1/usr/bin/busybox" "$1/staging/usr/bin/"
+        chroot "$1" /usr/bin/busybox --install -s /staging/usr/bin
+        ln -sf /usr/bin/busybox "$1/staging/init"
+        ln -sf /usr/bin "$1/staging/bin"
+        ln -sf /usr/bin "$1/staging/sbin"
+        ln -sf /usr/bin "$1/staging/usr/sbin"
+      else
+        echo "recovery-base: non-busybox init currently unsupported" >&2 ; exit 1
+      fi
+    # Apply overlay to staging
+    - rsync -a --exclude='.gitkeep' "$IGconf_dri_init_overlay"/ "$1/staging/"
+    #
+    # Future hooks can inject here for a clean point to inspect/strip/modify the
+    # assembled tree before it becomes part of the initramfs. Nothing else after
+    # this point is init system specific.
+    #
+    # Sync staging into the initramfs root
+    - rsync -a "$1/staging"/ "$1/initramfs-root"/
+    # Resolve listed files/modules (+ deps) into the root via dracut
+    - |-
+      set -u
+      di=/usr/lib/dracut/dracut-install
+      [ -x "$1/$di" ] || { echo "recovery-base: dracut not found" >&2; exit 1; }
+      grep -v '^#' "$1/initramfs.list" | grep -v '^[[:space:]]*$' \
+         | while IFS= read -r entry; do
+              env ${IGconf_dri_dracut_install_env:-} \
+                 chroot "$1" "$di" -l -D /initramfs-root \
+                 ${IGconf_dri_dracut_install_opts:-} -a "$entry"
+           done
+      if grep -qv '^[[:space:]]*#\|^[[:space:]]*$' "$1/modules.list" 2>/dev/null; then
+         ver=$(ls "$1/lib/modules")
+         [ -n "$ver" ] || { echo "recovery-base: modules directory not found" >&2; exit 1; }
+         chroot "$1" depmod --basedir / "$ver"
+         grep -v '^#' "$1/modules.list" | grep -v '^[[:space:]]*$' \
+            | xargs -r env ${IGconf_dri_dracut_install_env:-} \
+               chroot "$1" "$di" -D /initramfs-root \
+               --kerneldir "/lib/modules/$ver" \
+               ${IGconf_dri_dracut_install_opts:-} -m
+         # modinfo
+         mkdir -p "$1/initramfs-root/lib/modules/$ver"
+         for f in modules.order modules.builtin modules.builtin.modinfo; do
+            [ -e "$1/lib/modules/$ver/$f" ] && cp -a "$1/lib/modules/$ver/$f" "$1/initramfs-root/lib/modules/$ver/"
+         done
+         chroot "$1" depmod --basedir /initramfs-root "$ver"
+      fi
+    # Pack the curated initramfs root
+    - |-
+      set -u
+      ( cd "$1/initramfs-root" && find . -print0 \
+         | cpio --null -o -H newc 2>/dev/null ) \
+         | zstd --ultra --long -22 -q > "$1/bootfs/initramfs8"
+  aptopts:
+    - APT::Install-Suggests "false"
+    - APT::Install-Recommends "false"
+  dpkgopts:
+    - path-exclude=/usr/share/doc/*
+    - path-exclude=/usr/share/man/*
+    - path-exclude=/usr/share/locale/*

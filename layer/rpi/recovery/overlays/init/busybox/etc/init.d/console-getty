@@ -1,0 +1,17 @@
+#!/bin/sh
+# Start a getty on all supported console devices.
+constty=$(awk '{print $1}' /proc/consoles | grep -E '^tty(AMA|S)[0-9]+$' | head -n1)
+
+if [ -z "$constty" ]; then
+   # No consoles. Sleep to avoid init spinning
+   sleep 5
+   exit 1
+fi
+
+. /etc/autologin.conf 2>/dev/null
+
+if [ "$AUTOLOGIN" = 1 ]; then
+   exec getty -n -l /etc/console-login -L "$constty" 115200 vt100
+else
+   exec getty -L "$constty" 115200 vt100
+fi

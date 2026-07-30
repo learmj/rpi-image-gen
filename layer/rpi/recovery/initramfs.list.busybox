@@ -1,0 +1,12 @@
+# Files to include in the recovery initramfs, one per line. Comments and blank
+# lines are ignored. Each entry is resolved via dracut-install.
+# List only what you want - not transitive dependencies.
+/usr/bin/busybox
+/usr/sbin/ntpd
+
+# TODO connectd - move to separate layer
+#/usr/bin/dbus-daemon
+#/usr/share/dbus-1/system.conf
+#/etc/dbus-1
+#/usr/bin/rpi-connectd
+#/usr/bin/rpi-connect

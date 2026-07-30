@@ -1,0 +1,6 @@
+#!/bin/sh
+. /etc/autologin.conf
+if [ "$AUTOLOGIN" = 1 ]; then
+  exec /bin/sh -l
+fi
+exec /bin/login
