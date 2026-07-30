@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Pack the curated initramfs root into /bootfs, normalising uid/gid
+cd "$1/initramfs-root"
+find . -print0 \
+   | cpio --null -o -H newc --quiet -R 0:0 \
+   | zstd --ultra --long -22 -q > "$1/bootfs/initramfs8"

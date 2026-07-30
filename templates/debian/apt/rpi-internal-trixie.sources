@@ -1,0 +1,5 @@
+X-IG-Signed-By: /usr/share/keyrings/raspberrypi-archive-keyring.gpg
+Types: deb
+URIs: http://buildbot.pitowers.org:3143/
+Suites: trixie
+Components: main

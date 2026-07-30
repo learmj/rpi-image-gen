@@ -1,0 +1,8 @@
+umask 022
+export HOME=${HOME:-/}
+export TERM=${TERM:-linux}
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PS1="$(hostname)# "
+
+[ -r /etc/autologin.conf ] && . /etc/autologin.conf
+[ "${AUTOLOGIN:-0}" = 1 ] && [ -r /etc/motd ] && cat /etc/motd
