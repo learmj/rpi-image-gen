@@ -1,6 +1,7 @@
 # METABEGIN
 # X-Env-Layer-Name: image-rpios
 # X-Env-Layer-Category: image
+# X-Env-Layer-Stage: image
 # X-Env-Layer-Desc: Raspberry Pi OS style image layout with MBR, vfat
 #  boot partition, and a root partition that can be ext4 or btrfs.
 # X-Env-Layer-Version: 2.3.0
