@@ -278,17 +278,17 @@ import sys, pathlib, yaml
 for raw in pathlib.Path(sys.argv[1]).read_text().splitlines():
     if not raw or raw.startswith("#"):
         continue
-    parts = raw.split(":", 3)
-    if len(parts) != 4 or not parts[0] or not parts[3]:
+    parts = raw.split(":", 4)
+    if len(parts) != 5 or not parts[1] or not parts[4]:
         continue
-    layer, version, static, resolved = parts
+    stage, layer, version, static, resolved = parts
     try:
         data = yaml.safe_load(open(resolved, "rb"))
     except Exception as e:
         print(f"{resolved}: {e}", file=sys.stderr)
         sys.exit(2)
     if isinstance(data, dict) and data.get("mmdebstrap"):
-        print(f"{layer}:{version}:{static}:{resolved}")
+        print(f"{stage}:{layer}:{version}:{static}:{resolved}")
 ' "$1"
 }
 export -f filter_mmdebstrap_layers

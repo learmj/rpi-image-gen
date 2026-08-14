@@ -369,7 +369,7 @@ prepare_build_config()
    local total=0 added=0
 
    # Sanity check resolved layers from the plan
-   while IFS=: read -r layer version static resolved; do
+   while IFS=: read -r stage layer version static resolved; do
       [[ -n $layer && -n $resolved ]] || continue
       [[ $layer == \#* ]] && continue
       ((total++))
@@ -382,7 +382,7 @@ prepare_build_config()
       || die "Failed to parse one or more YAML layers"
 
    # Construct the bdebstrap ordered chain, including synthesised layers
-   while IFS=: read -r layer version static resolved; do
+   while IFS=: read -r stage layer version static resolved; do
       [[ -n $layer ]] || continue
       ((added++))
 

@@ -200,9 +200,10 @@ def _write_layer_plan(path: str, build_order: List[str], manager: LayerManager) 
             for layer in build_order:
                 info = manager.get_layer_info(layer) or {}
                 version = info.get("version", "")
+                stage = info.get("stage", "filesystem")
                 static = manager.layer_source_files.get(manager._resolve_key(layer), "")
                 resolved = manager.layer_files.get(manager._resolve_key(layer), "")
-                handle.write(f'{layer}:{version}:{static}:{resolved}\n')
+                handle.write(f'{stage}:{layer}:{version}:{static}:{resolved}\n')
         print(f"Layer plan written to: {path}")
     except Exception as exc:
         print(f"Error writing layer plan to {path}: {exc}")

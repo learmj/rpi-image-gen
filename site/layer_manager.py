@@ -833,6 +833,8 @@ class LayerManager:
                 raw_desc = ' '.join((layer_info.get('description') or '').split())
                 print(f"    {'Description:':<{LABEL_W}}{raw_desc}")
 
+                print(f"    {'Stage:':<{LABEL_W}}{layer_info['stage']}")
+
                 deps = ', '.join(layer_info['depends']) if layer_info['depends'] else 'none'
                 print(f"    {'Deps:':<{LABEL_W}}{deps}")
 
@@ -1098,6 +1100,7 @@ def _generate_layer_boilerplate():
 # X-Env-Layer-Name: my-example-layer
 # X-Env-Layer-Desc: Example layer with options
 # X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Stage: filesystem
 # X-Env-Layer-Provides: debian-base
 # X-Env-Layer-RequiresProvider:
 # X-Env-Layer-AfterProvider:
@@ -1240,6 +1243,7 @@ def _layer_main(args):
                 if dep_info:
                     print(f"Layer: {dep_info['name']}")
                     print(f"Category: {dep_info.get('category', 'unknown')}")
+                    print(f"Stage: {dep_info['stage']}")
                     print(f"Description: {dep_info.get('description', 'No description')}")
                     print()
 
@@ -1273,6 +1277,7 @@ def _layer_main(args):
             print(f"Layer: {layer_info['name']}")
             print(f"Version: {layer_info['version']}")
             print(f"Category: {layer_info['category']}")
+            print(f"Stage: {layer_info['stage']}")
             print(f"Description: {layer_info['description']}")
             print(f"Type: {layer_info['type']}")
             if layer_info.get('type') == 'dynamic' and layer_info.get('generator'):

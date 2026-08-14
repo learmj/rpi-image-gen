@@ -189,6 +189,11 @@ class XEnv:
         return f"{cls.LAYER_PREFIX}Category"
 
     @classmethod
+    def layer_stage(cls) -> str:
+        """Build layer stage field: X-Env-Layer-Stage"""
+        return f"{cls.LAYER_PREFIX}Stage"
+
+    @classmethod
     def layer_requires(cls) -> str:
         """Build layer requires field: X-Env-Layer-Requires"""
         return f"{cls.LAYER_PREFIX}Requires"
@@ -764,7 +769,7 @@ class EnvLayer:
     """Represents a layer with its dependencies and metadata."""
 
     def __init__(self, name: str, description: str = "", version: str = "1.0.0",
-                 category: str = "general", deps: List[str] = None,
+                 category: str = "general", stage: str = "filesystem", deps: List[str] = None,
                  conditional_deps: List[Tuple[str, str]] = None,
                  provides: List[str] = None, requires_provider: List[str] = None,
                  after_provider: List[str] = None,
@@ -775,6 +780,7 @@ class EnvLayer:
         self.description = description
         self.version = version
         self.category = category
+        self.stage = stage
         self.deps = deps or []
         self.conditional_deps: List[Tuple[str, str]] = conditional_deps or []  # [(layer_name, condition)]
         self.provides = provides or []
@@ -801,6 +807,9 @@ class EnvLayer:
         description = metadata_dict.get(XEnv.layer_description(), "")
         version = metadata_dict.get(XEnv.layer_version(), "1.0.0")
         category = metadata_dict.get(XEnv.layer_category(), "general")
+        stage = metadata_dict.get(XEnv.layer_stage(), "filesystem").strip().lower() or "filesystem"
+        if stage not in ("filesystem", "image"):
+            raise ValueError(f"Invalid {XEnv.layer_stage()} '{stage}' in {filepath} (must be 'filesystem' or 'image')")
         layer_type = metadata_dict.get(XEnv.layer_type(), "static").strip().lower() or "static"
         generator = metadata_dict.get(XEnv.layer_generator(), "").strip()
         if layer_type not in ("static", "dynamic"):
@@ -843,6 +852,7 @@ class EnvLayer:
             description=description,
             version=version,
             category=category,
+            stage=stage,
             deps=requires,
             conditional_deps=conditional_deps,
             provides=provides,
@@ -1014,6 +1024,7 @@ class EnvLayer:
             "description": self.description,
             "version": self.version,
             "category": self.category,
+            "stage": self.stage,
             "type": self.layer_type,
             "generator": self.generator,
             "depends": self.deps,

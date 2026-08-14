@@ -123,6 +123,7 @@ SUPPORTED_FIELD_PATTERNS = {
     XEnv.layer_requires(): {"type": "single", "description": "Required layer dependencies"},
     XEnv.layer_conflicts(): {"type": "single", "description": "Conflicting layers"},
     XEnv.layer_category(): {"type": "single", "description": "Layer category"},
+    XEnv.layer_stage(): {"type": "single", "description": "Layer stage (filesystem or image) - influences per-layer execution order"},
     XEnv.layer_type(): {"type": "single", "description": "Layer type (static or dynamic)"},
     XEnv.layer_generator(): {"type": "single", "description": "Generator executable for dynamic layers"},
     XEnv.layer_provides(): {"type": "single", "description": "Capabilities provided by this layer"},
@@ -1167,6 +1168,7 @@ def _generate_boilerplate():
 # X-Env-Layer-Desc: Layer description
 # X-Env-Layer-Version: 1.0.0
 # X-Env-Layer-Category: general
+# X-Env-Layer-Stage: filesystem
 # X-Env-Layer-Sets: KEY=VALUE
 #
 # X-Env-Layer-Requires:

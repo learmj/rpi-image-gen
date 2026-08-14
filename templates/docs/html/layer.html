@@ -123,6 +123,7 @@
     <div class="header">
         <h1>{{ layer.layer_info.name }}</h1>
         {% if layer.layer_info.category %}<span class="badge">{{ layer.layer_info.category }}</span>{% endif %}
+        {% if layer.layer_info.stage %}<span class="badge">stage: {{ layer.layer_info.stage }}</span>{% endif %}
         {% if layer.layer_info.version %}<span class="badge">v{{ layer.layer_info.version }}</span>{% endif %}
         <p>{{ layer.layer_info.description or 'No description available' }}</p>
     </div>
