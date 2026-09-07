@@ -2,7 +2,7 @@
 # X-Env-Layer-Name: image-base
 # X-Env-Layer-Category: image
 # X-Env-Layer-Desc: Default image settings and build attributes.
-# X-Env-Layer-Version: 2.2.3
+# X-Env-Layer-Version: 2.3.3
 # X-Env-Layer-Requires: sys-build-base,sbom-base,target-config,artefact-base,deploy-base,fs-base
 # X-Env-Layer-RequiresProvider: device
 #
@@ -37,6 +37,15 @@
 # X-Env-Var-name-Required: n
 # X-Env-Var-name-Valid: string
 # X-Env-Var-name-Set: y
+#
+# X-Env-Var-idp_enable: n
+# X-Env-Var-idp_enable-Desc: Generate an Image Description Provisioning (IDP)
+#  document for this image. Set automatically for Raspberry Pi devices.
+#  See https://raspberrypi.github.io/rpi-image-gen/provisioning/index.html
+# X-Env-Var-idp_enable-Required: n
+# X-Env-Var-idp_enable-Valid: bool
+# X-Env-Var-idp_enable-Set: lazy
+# X-Env-Var-idp_enable-Triggers: when=has('hw:device:rpi') set IGconf_image_idp_enable=y policy=lazy
 #
 # X-Env-Var-pmap:
 # X-Env-Var-pmap-Desc: Set the identifier string for the image Provisioning

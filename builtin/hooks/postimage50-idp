@@ -2,6 +2,7 @@
 
 set -eu
 
+igconf isy image_idp_enable || exit 0
 
 opts=()
 pmap_installed=false
@@ -33,3 +34,5 @@ if [ "${IGconf_image_provider:-}" = "genimage" ] && [ -f ${1}/genimage.cfg ] ; t
          die "IDP: Merged PMAP failed validation."
    fi
 fi
+
+msg "IDP: Description written to ${1}/image.json"
