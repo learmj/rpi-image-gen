@@ -12,6 +12,10 @@ import subprocess
 VERSION = "2.2.0"
 
 
+def warn(msg):
+    sys.stderr.write(f"image2json: warning: {msg}\n")
+
+
 IMAGE_KEYS = {"IGconf_device_class",
               "IGconf_device_variant",
               "IGconf_device_storage_type",
@@ -279,18 +283,18 @@ def parse_genimage_config(config_path):
         if sz:
             disk_attr["image-size"] = sz
 
-    # IDP targets block devices directly and has no concept of data outside the
-    # partition table, so reject configs that use in-partition-table=false.
+    # Partitions declared outside the partition table are carried through to
+    # the output, but as they have no table entry, they're excluded from the
+    # association against the probed table.
+    in_table = []
     for pname, pattr in partitions.items():
         if str(pattr.get("in-partition-table", "true")).lower() == "false":
-            raise ValueError(
-                f"Partition '{pname}' sets in-partition-table=false; "
-                "IDP does not support partitions outside the partition table"
-            )
+            warn(f"Partition '{pname}' declared outside the partition table")
+        else:
+            in_table.append(pname)
 
-    # Read the partition table from the disk image first - partition sizes and
-    # GPT attributes are derived from this rather than from genimage config or
-    # on-disk file sizes.
+    # Read the partition table from the disk image - partition sizes and GPT
+    # attributes are derived from it.
     img_path = get_artefact_path(img_name, "IGconf_image_outputdir")
     try:
         res = subprocess.run(
@@ -311,10 +315,8 @@ def parse_genimage_config(config_path):
 
     conf_sectorsize = os.environ.get("IGconf_device_sector_size")
     if conf_sectorsize and int(conf_sectorsize) != sfdisk_sectorsize:
-        raise ValueError(
-            f"IGconf_device_sector_size={conf_sectorsize} does not match "
-            f"sfdisk sectorsize={sfdisk_sectorsize}"
-        )
+        warn(f"IGconf_device_sector_size={conf_sectorsize} does not match "
+             f"probed sectorsize={sfdisk_sectorsize}")
 
     # Sort sfdisk partitions by start offset for authoritative on-disk ordering
     sfdisk_parts = sorted(
@@ -322,15 +324,16 @@ def parse_genimage_config(config_path):
         key=lambda p: p.get("start", 0)
     )
 
-    # IDP does not support DOS/MBR extended partitions
     if pt_header.get("label", "").lower() == "dos" and len(sfdisk_parts) > 4:
-        raise ValueError("IDP requires GPT for an image with more than 4 partitions")
+        warn("MBR with more than 4 partitions requires an extended partition. "
+             "GPT is recommended")
 
-    partition_names = list(partitions.keys())
-    if len(partition_names) != len(sfdisk_parts):
+    # The association below is positional, so we must fail if our computed
+    # 'in table' count differs to the probe.
+    if len(in_table) != len(sfdisk_parts):
         raise ValueError(
-            f"Partition count mismatch: genimage has {len(partition_names)}, "
-            f"sfdisk found {len(sfdisk_parts)}"
+            f"In partition table mismatch: genimage({len(in_table)}), "
+            f"probe({len(sfdisk_parts)})"
         )
 
     # https://github.com/pengutronix/genimage?tab=readme-ov-file#the-image-configuration-options
@@ -340,37 +343,40 @@ def parse_genimage_config(config_path):
 
     is_gpt = pt_header.get("label", "").lower() == "gpt"
 
-    # Associate partitions in the hdimage with their images.
-    # Genimage config order corresponds positionally to sfdisk partitions sorted by start.
-    for pname, sfdisk_part in zip(partition_names, sfdisk_parts):
-        pattr = partitions[pname]
+    # Associate all partitions with their images. Covers partitions in or out
+    # of the ptable.
+    for pname, pattr in partitions.items():
+        # Initialise from template
+        base = copy.deepcopy(partition_template)
+        base["name"] = pname
+        partitions[pname] = {**base, **pattr}
 
-        if "image" in pattr:
-            piname = pattr["image"]
-            if piname in images:
-                # Found. Merge, initialising from template
-                base = copy.deepcopy(partition_template)
-                base["name"] = pname
-                partitions[pname] = {**base, **images[piname], **pattr}
+        piname = pattr.get("image")
+        if piname not in images:
+            continue
 
-                # Tag image type
-                for t in gtypes:
-                    s = find_sections(t, partitions[pname])
-                    if s:
-                        partitions[pname]["type"] = t
-                        # Invoke the processor for this type
-                        if t in IMAGE_PROCESSORS:
-                            attr = IMAGE_PROCESSORS[t](s)
-                            if attr:
-                                partitions[pname].update(attr)
+        # Found. Merge, config attributes win
+        partitions[pname] = {**base, **images[piname], **pattr}
 
-                # If this image has a sparse derivative, tag it
-                for sname, sdata in simgs.items():
-                    simg = sdata.get("android-sparse")
-                    if piname == simg.get("image"):
-                        partitions[pname]["simage"] = sname
+        # Tag image type
+        for t in gtypes:
+            s = find_sections(t, partitions[pname])
+            if s:
+                partitions[pname]["type"] = t
+                # Invoke the processor for this type
+                if t in IMAGE_PROCESSORS:
+                    attr = IMAGE_PROCESSORS[t](s)
+                    if attr:
+                        partitions[pname].update(attr)
 
-        # Partition size and GPT attributes come from sfdisk for all partitions
+        # If this image has a sparse derivative, tag it
+        for sname, sdata in simgs.items():
+            simg = sdata.get("android-sparse")
+            if piname == simg.get("image"):
+                partitions[pname]["simage"] = sname
+
+    # Attributes for partitions in the partition table come from the probe
+    for pname, sfdisk_part in zip(in_table, sfdisk_parts):
         partitions[pname]["size"] = sfdisk_part["size"] * sfdisk_sectorsize
 
         # Populate GPT attributes from the partition table
@@ -381,6 +387,16 @@ def parse_genimage_config(config_path):
             gpt_uuid = sfdisk_part.get("uuid")
             if gpt_uuid:
                 partitions[pname]["partition-uuid"] = gpt_uuid
+
+    # Attributes for partitions outside the partition table come from the image
+    for pname in [n for n in partitions if n not in in_table]:
+        piname = partitions[pname].get("image")
+        sz = get_artefact_size(piname) if piname else None
+        if sz:
+            partitions[pname]["size"] = sz
+        else:
+            warn(f"Partition '{pname}' has no partition table entry and no "
+                 "image to size it from")
 
     # Remove filesystem attributes from all partitions
     for part in partitions.values():
