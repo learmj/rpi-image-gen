@@ -2,6 +2,8 @@
 
 set -eu
 
+igconf isy image_idp_enable || exit 0
+
 outdir=${IGconf_image_outputdir:-}
 [[ -n "$outdir" && -f "$outdir/image.json" ]] || exit 0
 
