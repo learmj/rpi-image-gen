@@ -5,6 +5,7 @@ PKG_DEPS := zstd util-linux
 PKG_CONFIGURE_OPTS := \
    --with-libzstd \
    --without-selinux \
+   --disable-lzma \
    --enable-multithreading \
    --disable-static \
    --disable-dependency-tracking \
