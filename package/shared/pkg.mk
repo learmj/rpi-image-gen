@@ -1,13 +1,6 @@
 PKG_SHARED_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(PKG_SHARED_DIR)/pkg-env.mk
 
-DEB_BUILD_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
-DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-
-# Tools are built for build arch by default
-PKG_BUILD_GNU_TYPE := $(or $(strip $(PKG_BUILD_GNU_TYPE)),$(DEB_BUILD_GNU_TYPE))
-PKG_HOST_GNU_TYPE  := $(or $(strip $(PKG_HOST_GNU_TYPE)),$(DEB_BUILD_GNU_TYPE))
-
 PKG_DESTDIR         ?= $(abspath $(IGconf_sys_buildroot)/staging/$(PKG_HOST_GNU_TYPE))
 PKG_RUNTIME_DESTDIR ?= $(abspath $(IGconf_sys_buildroot)/host/$(PKG_HOST_GNU_TYPE))
 PKG_PREFIX          ?= /usr
