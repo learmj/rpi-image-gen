@@ -126,6 +126,26 @@ source: $(PKG_SOURCE_STAMP)
 
 # Build and Install
 
+# Environment for the schemes which configure a toolchain
+ifneq ($(filter autotools cmake,$(PKG_BUILD_SCHEME)),)
+ifeq ($(PKG_USE_HOST_PKGCONFIG),1)
+PKG_ENVIRONMENT += PKG_CONFIG_SYSROOT_DIR=
+PKG_ENVIRONMENT += PKG_CONFIG_PATH=/usr/lib/$(PKG_HOST_GNU_TYPE)/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+PKG_ENVIRONMENT += PKG_CONFIG_LIBDIR=/usr/lib/$(PKG_HOST_GNU_TYPE)/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+else
+PKG_ENVIRONMENT += PKG_CONFIG_SYSROOT_DIR=$(PKG_DESTDIR)
+PKG_ENVIRONMENT += PKG_CONFIG_PATH=$(PKG_INSTALL_PATH)/lib/pkgconfig:$(PKG_INSTALL_PATH)/share/pkgconfig
+PKG_ENVIRONMENT += PKG_CONFIG_LIBDIR=$(PKG_INSTALL_PATH)/lib/pkgconfig:$(PKG_INSTALL_PATH)/lib/$(PKG_HOST_GNU_TYPE)/pkgconfig
+endif
+
+PKG_ENVIRONMENT += PKG_CONFIG=pkg-config
+PKG_ENVIRONMENT += CPPFLAGS="$(PKG_CPPFLAGS)"
+PKG_ENVIRONMENT += CFLAGS="$(PKG_CFLAGS)"
+PKG_ENVIRONMENT += CXXFLAGS="$(PKG_CXXFLAGS)"
+PKG_ENVIRONMENT += LDFLAGS="$(PKG_LDFLAGS)"
+PKG_ENVIRONMENT += MAKEINFO=true
+endif
+
 ifeq ($(PKG_BUILD_SCHEME),pysrc)
 
 # https://github.com/pypa/pip/issues/10978
@@ -176,23 +196,6 @@ $(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_DESTDIR) $(PKG_RUNTIME_DESTDIR)
 
 else ifeq ($(PKG_BUILD_SCHEME),autotools)
 
-ifeq ($(PKG_USE_HOST_PKGCONFIG),1)
-PKG_ENVIRONMENT += PKG_CONFIG_SYSROOT_DIR=
-PKG_ENVIRONMENT += PKG_CONFIG_PATH=/usr/lib/$(PKG_HOST_GNU_TYPE)/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
-PKG_ENVIRONMENT += PKG_CONFIG_LIBDIR=/usr/lib/$(PKG_HOST_GNU_TYPE)/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
-else
-PKG_ENVIRONMENT += PKG_CONFIG_SYSROOT_DIR=$(PKG_DESTDIR)
-PKG_ENVIRONMENT += PKG_CONFIG_PATH=$(PKG_INSTALL_PATH)/lib/pkgconfig:$(PKG_INSTALL_PATH)/share/pkgconfig
-PKG_ENVIRONMENT += PKG_CONFIG_LIBDIR=$(PKG_INSTALL_PATH)/lib/pkgconfig:$(PKG_INSTALL_PATH)/lib/$(PKG_HOST_GNU_TYPE)/pkgconfig
-endif
-
-PKG_ENVIRONMENT += PKG_CONFIG=pkg-config
-PKG_ENVIRONMENT += CPPFLAGS="$(PKG_CPPFLAGS)"
-PKG_ENVIRONMENT += CFLAGS="$(PKG_CFLAGS)"
-PKG_ENVIRONMENT += CXXFLAGS="$(PKG_CXXFLAGS)"
-PKG_ENVIRONMENT += LDFLAGS="$(PKG_LDFLAGS)"
-PKG_ENVIRONMENT += MAKEINFO=true
-
 $(PKG_SOURCE_PATH)/configure: $(PKG_SOURCE_STAMP)
 	$(call msg,AUTORECONF)
 	@$(call run,(cd $(@D) && \
@@ -231,6 +234,57 @@ $(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_RUNTIME_DESTDIR) $(PKG_DESTDIR)
 	@rm -rf \
 		$(PKG_RUNTIME_PATH)/lib/*.a \
 		$(PKG_RUNTIME_PATH)/lib/*.la \
+		$(PKG_RUNTIME_PATH)/include \
+		$(PKG_RUNTIME_PATH)/lib/pkgconfig \
+		$(PKG_RUNTIME_PATH)/share/doc \
+		$(PKG_RUNTIME_PATH)/share/man
+	@touch $@
+
+else ifeq ($(PKG_BUILD_SCHEME),cmake)
+
+PKG_CMAKE_BUILD_TYPE ?= Release
+
+PKG_CMAKE_OPTS := \
+	-DCMAKE_BUILD_TYPE=$(PKG_CMAKE_BUILD_TYPE) \
+	-DCMAKE_INSTALL_PREFIX=$(PKG_PREFIX) \
+	-DCMAKE_INSTALL_SYSCONFDIR=/etc \
+	-DCMAKE_INSTALL_LIBDIR=lib \
+	-DCMAKE_PREFIX_PATH=$(PKG_INSTALL_PATH)
+
+ifneq ($(PKG_BUILD_GNU_TYPE),$(PKG_HOST_GNU_TYPE))
+PKG_CMAKE_OPTS += \
+	-DCMAKE_SYSTEM_NAME=Linux \
+	-DCMAKE_SYSTEM_PROCESSOR=$(firstword $(subst -, ,$(PKG_HOST_GNU_TYPE))) \
+	-DCMAKE_C_COMPILER=$(PKG_HOST_GNU_TYPE)-gcc \
+	-DCMAKE_CXX_COMPILER=$(PKG_HOST_GNU_TYPE)-g++
+endif
+
+PKG_ENVIRONMENT += CMAKE_GENERATOR="Unix Makefiles"
+
+$(PKG_SOURCE_PATH)/CMakeLists.txt: $(PKG_SOURCE_STAMP)
+	@test -s $@
+
+$(PKG_BUILD_PATH)/Makefile: $(PKG_SOURCE_PATH)/CMakeLists.txt | $(PKG_BUILD_PATH) $(PKG_DESTDIR)
+	$(call msg,CONFIGURE)
+	@$(call run,env $(PKG_ENVIRONMENT) \
+		cmake --fresh -S $(PKG_SOURCE_PATH) -B $(PKG_BUILD_PATH) \
+		$(PKG_CMAKE_OPTS) \
+		$(PKG_CONFIGURE_OPTS))
+	@test -s $@
+
+$(PKG_BUILD_STAMP): $(PKG_BUILD_PATH)/Makefile
+	$(call msg,BUILD)
+	@$(call run,env $(PKG_ENVIRONMENT) \
+		$(MAKE) -C $(PKG_BUILD_PATH) $(PKG_MAKE_OPTS))
+	@touch $@
+
+$(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_RUNTIME_DESTDIR) $(PKG_DESTDIR)
+	$(call msg,INSTALL)
+	@$(foreach d,$|,$(call run,env $(PKG_ENVIRONMENT) \
+		$(MAKE) -C $(PKG_BUILD_PATH) install $(PKG_MAKE_OPTS) DESTDIR=$(d));)
+	@rm -rf \
+		$(PKG_RUNTIME_PATH)/lib/*.a \
+		$(PKG_RUNTIME_PATH)/lib/cmake \
 		$(PKG_RUNTIME_PATH)/include \
 		$(PKG_RUNTIME_PATH)/lib/pkgconfig \
 		$(PKG_RUNTIME_PATH)/share/doc \
