@@ -11,13 +11,13 @@ PKG_RUNTIME_PATH := $(abspath $(PKG_RUNTIME_DESTDIR)/$(PKG_PREFIX))
 
 THIS_PKG ?= $(CURDIR)
 
-PKG_META ?= $(PKG_NAME)-$(PKG_VER).meta
+PKG_META ?= $(PKG_STEM)-$(PKG_VER).meta
 PKG_META_PATH := $(abspath $(THIS_PKG)/$(PKG_META))
 ifeq (,$(wildcard $(PKG_META_PATH)))
 $(error $(PKG_META_PATH) not found)
 endif
-PKG_SOURCE_DIR ?= $(PKG_NAME)-$(PKG_VER)
-PKG_ARCHIVE ?= $(PKG_NAME)-$(PKG_VER).tar.gz
+PKG_SOURCE_DIR ?= $(PKG_STEM)-$(PKG_VER)
+PKG_ARCHIVE ?= $(PKG_STEM)-$(PKG_VER).tar.gz
 PKG_SUBDIR ?= .
 
 PKG_ENVIRONMENT    ?=
@@ -27,7 +27,7 @@ PKG_PATCHES        := $(sort $(wildcard $(abspath $(THIS_PKG)/$(PKG_PATCH_DIR))/
 PKG_PATCH_STRIP    ?= 1
 PKG_UNPACK_STRIP   ?= 1
 PKG_CONFIGURE_OPTS ?=
-PKG_LIB_SHARED     ?= lib$(patsubst lib%,%,$(PKG_NAME))*.so*
+PKG_LIB_SHARED     ?= lib$(patsubst lib%,%,$(PKG_STEM))*.so*
 PKG_MAKE_OPTS      ?=
 
 # Set to y for offline builds - no network access during package build
@@ -56,7 +56,7 @@ PKG_ARCHIVE_PATH := $(PKG_WORK_DIR)/$(PKG_ARCHIVE)
 PKG_SOURCE_ROOT := $(PKG_WORK_DIR)/$(PKG_SOURCE_DIR)
 PKG_SOURCE_PATH := $(PKG_SOURCE_ROOT)/$(PKG_SUBDIR)
 PKG_BUILD_PATH := $(PKG_SOURCE_ROOT)-build
-PKG_BUILD_LOG := $(PKG_WORK_DIR)/$(PKG_NAME)-$(PKG_VER).log
+PKG_BUILD_LOG := $(PKG_WORK_DIR)/$(PKG_STEM)-$(PKG_VER).log
 
 
 .DEFAULT_GOAL := $(PKG_INSTALL_STAMP)
@@ -152,7 +152,7 @@ define installwheel
 			--prefix="$(PKG_PREFIX)" \
 			--ignore-installed \
 			$(2) \
-			$(PKG_NAME)==$(PKG_VER))
+			$(PKG_STEM)==$(PKG_VER))
 endef
 
 PIP_CACHE  := $(PKG_CACHE_ROOT)/pip-cache
