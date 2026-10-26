@@ -6,6 +6,9 @@ PKG_RUNTIME_DESTDIR ?= $(abspath $(IGconf_sys_buildroot)/host/$(PKG_HOST_GNU_TYP
 PKG_PREFIX          ?= /usr
 PKG_CACHE_ROOT      := $(abspath $(if $(strip $(IGconf_sys_cachedir)),$(IGconf_sys_cachedir),/tmp))
 
+$(if $(strip $(PKG_DESTDIR)),,$(error PKG_DESTDIR must not be empty))
+$(if $(strip $(PKG_RUNTIME_DESTDIR)),,$(error PKG_RUNTIME_DESTDIR must not be empty))
+
 PKG_INSTALL_PATH := $(abspath $(PKG_DESTDIR)/$(PKG_PREFIX))
 PKG_RUNTIME_PATH := $(abspath $(PKG_RUNTIME_DESTDIR)/$(PKG_PREFIX))
 
