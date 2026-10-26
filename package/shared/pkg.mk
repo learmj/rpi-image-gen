@@ -140,7 +140,18 @@ PKG_ENVIRONMENT += LDFLAGS='$(PKG_LDFLAGS_ENV)'
 PKG_ENVIRONMENT += MAKEINFO=true
 endif
 
+# Defines what's removed from the runtime tree
+PKG_RUNTIME_PRUNE += \
+	share/doc \
+	share/man
+
 ifeq ($(PKG_BUILD_SCHEME),pysrc)
+
+PKG_RUNTIME_PRUNE += \
+	lib/python*/dist-packages/*.dist-info \
+	lib/python*/dist-packages/*.data \
+	lib/python*/dist-packages/test* \
+	lib/python*/dist-packages/__pycache__
 
 # https://github.com/pypa/pip/issues/10978
 define installwheel
@@ -179,16 +190,15 @@ $(PKG_BUILD_STAMP): $(PKG_SOURCE_STAMP) | $(PIP_CACHE) $(PIP_WHEELS)
 $(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_DESTDIR) $(PKG_RUNTIME_DESTDIR)
 	$(call msg,INSTALL)
 	@$(foreach d,$|,$(call installwheel,$(d));)
-	@rm -rf \
-		$(PKG_RUNTIME_PATH)/lib/python*/dist-packages/*.dist-info \
-		$(PKG_RUNTIME_PATH)/lib/python*/dist-packages/*.data \
-		$(PKG_RUNTIME_PATH)/lib/python*/dist-packages/test* \
-		$(PKG_RUNTIME_PATH)/lib/python*/dist-packages/__pycache__ \
-		$(PKG_RUNTIME_PATH)/share/doc \
-		$(PKG_RUNTIME_PATH)/share/man
 	@touch $@
 
 else ifeq ($(PKG_BUILD_SCHEME),autotools)
+
+PKG_RUNTIME_PRUNE += \
+	lib/*.a \
+	lib/*.la \
+	include \
+	lib/pkgconfig
 
 # configure copies LDFLAGS into the generated Makefile, so escape $ORIGIN for make
 PKG_LDFLAGS_ENV = $(subst $$ORIGIN,\$$$$ORIGIN,$(PKG_LDFLAGS))
@@ -228,16 +238,15 @@ $(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_RUNTIME_DESTDIR) $(PKG_DESTDIR)
 	$(call msg,INSTALL)
 	@$(foreach d,$|,$(call run,env $(PKG_ENVIRONMENT) \
 		$(MAKE) -C $(PKG_BUILD_PATH) install $(PKG_MAKE_OPTS) DESTDIR=$(d));)
-	@rm -rf \
-		$(PKG_RUNTIME_PATH)/lib/*.a \
-		$(PKG_RUNTIME_PATH)/lib/*.la \
-		$(PKG_RUNTIME_PATH)/include \
-		$(PKG_RUNTIME_PATH)/lib/pkgconfig \
-		$(PKG_RUNTIME_PATH)/share/doc \
-		$(PKG_RUNTIME_PATH)/share/man
 	@touch $@
 
 else ifeq ($(PKG_BUILD_SCHEME),cmake)
+
+PKG_RUNTIME_PRUNE += \
+	lib/*.a \
+	lib/cmake \
+	include \
+	lib/pkgconfig
 
 PKG_LDFLAGS_ENV = $(PKG_LDFLAGS)
 
@@ -281,16 +290,15 @@ $(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_RUNTIME_DESTDIR) $(PKG_DESTDIR)
 	$(call msg,INSTALL)
 	@$(foreach d,$|,$(call run,env $(PKG_ENVIRONMENT) \
 		$(MAKE) -C $(PKG_BUILD_PATH) install $(PKG_MAKE_OPTS) DESTDIR=$(d));)
-	@rm -rf \
-		$(PKG_RUNTIME_PATH)/lib/*.a \
-		$(PKG_RUNTIME_PATH)/lib/cmake \
-		$(PKG_RUNTIME_PATH)/include \
-		$(PKG_RUNTIME_PATH)/lib/pkgconfig \
-		$(PKG_RUNTIME_PATH)/share/doc \
-		$(PKG_RUNTIME_PATH)/share/man
 	@touch $@
 
 else ifeq ($(PKG_BUILD_SCHEME),makefile)
+
+PKG_RUNTIME_PRUNE += \
+	lib/*.a \
+	lib/*.la \
+	include \
+	lib/pkgconfig
 
 PKG_ENVIRONMENT += CC="$(PKG_HOST_GNU_TYPE)-gcc"
 
@@ -305,13 +313,6 @@ $(PKG_INSTALL_STAMP): $(PKG_BUILD_STAMP) | $(PKG_DESTDIR) $(PKG_RUNTIME_DESTDIR)
 	@$(foreach d,$|,$(call run,env $(PKG_ENVIRONMENT) \
 		$(MAKE) -C $(PKG_SOURCE_PATH) install $(PKG_MAKE_OPTS) \
 		PREFIX=$(PKG_PREFIX) DESTDIR=$(d));)
-	@rm -rf \
-		$(PKG_RUNTIME_PATH)/lib/*.a \
-		$(PKG_RUNTIME_PATH)/lib/*.la \
-		$(PKG_RUNTIME_PATH)/include \
-		$(PKG_RUNTIME_PATH)/lib/pkgconfig \
-		$(PKG_RUNTIME_PATH)/share/doc \
-		$(PKG_RUNTIME_PATH)/share/man
 	@touch $@
 
 else
@@ -320,6 +321,10 @@ endif
 
 .PHONY: install
 install: $(PKG_INSTALL_STAMP)
+
+.PHONY: prune
+prune:
+	@rm -rf $(addprefix $(PKG_RUNTIME_PATH)/,$(PKG_RUNTIME_PRUNE))
 
 .PHONY: deps-mk
 deps-mk:

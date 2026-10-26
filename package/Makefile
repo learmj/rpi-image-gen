@@ -19,12 +19,19 @@ DEP_DIR  := $(IGconf_sys_buildroot)/pkgdeps
 DEPFILES := $(PACKAGE_GOALS:%=$(DEP_DIR)/%.deps.mk)
 
 ALL_PACKAGE_STAMPS :=
+ALL_PACKAGE_DIRS :=
 
-.PHONY: all clean $(REQUESTED_PKGS)
+.PHONY: all clean finalise $(REQUESTED_PKGS)
 
 -include $(DEPFILES)
 
 all: $(ALL_PACKAGE_STAMPS)
+
+# Packages share the runtime tree. Only prune it once they've all installed
+finalise: $(ALL_PACKAGE_STAMPS)
+	@$(foreach d,$(ALL_PACKAGE_DIRS),$(MAKE) -C "$(d)" --no-print-directory prune &&) true
+
+$(PACKAGE_GOALS): finalise
 
 $(DEP_DIR)/%.deps.mk: $(PKG_ROOT)/%/Makefile $(PKG_ENV) $(DEPGEN)
 	@mkdir -p "$(@D)"
