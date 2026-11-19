@@ -25,3 +25,7 @@ The variables defined here are *defaults for convenience*. An image layout is in
 * These variables are only meaningful when an image layout chooses to reference them.
 
 See the link:../../../../provisioning/index.html[IDP Provisioning Documentation] for a full description of the PMAP format and how it is embedded in the IDP document.
+
+== Contributing to the IDP document
+
+Layers can contribute to sections that the IDP schema marks as `"x-dropin": true` using drop-ins for `rpi-idp` in a directory named after the section, eg `for/rpi-idp/stores/`. Each file holds JSON for part of the section. A later layer's file replaces an earlier layer's file of the same name, and an empty file removes it. The remaining files are then merged in order: objects are merged, arrays are appended, and any other value from a later file replaces an earlier one. The result is validated against the schema.
