@@ -79,11 +79,13 @@ done
 
 
 # The image's /var, kept in the image. A slot's /var is reset from it on its
-# first boot after an update, see slot-var-reset. The directories in cache,
-# log and tmp are kept, but not the files.
+# first boot and its first boot after an update, see slot-var-reset. The
+# directories in cache, log and tmp are kept, but not the files. Any update
+# stamp is left out, as systemd-update-done writes it on the device.
 factory="${fs}/usr/share/factory/var"
 mkdir -p "$factory"
 rsync -aHAXS --numeric-ids --delete \
+   --exclude=/.updated \
    --include='/cache/**/' --include='/log/**/' --include='/tmp/**/' \
    --exclude='/cache/**' --exclude='/log/**' --exclude='/tmp/**' \
    "${fs}/var/" "${factory}/"

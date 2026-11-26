@@ -147,7 +147,7 @@ PARSERS = {"1": parse_v1}
 
 
 # Declarations from every file, as {path: (op, conf, key)}. The update stamp
-# describes the files kept with it, see preimage10-update-done.
+# describes the files kept with it, see rpi-persist-files.
 decl = {"/etc/.updated": ("EarlyPersistFile", "slot-state", "EarlyPersistFile")}
 
 for conf in sorted(confdir.glob("*.conf")):

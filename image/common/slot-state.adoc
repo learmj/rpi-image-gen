@@ -28,7 +28,7 @@ Paths on the persistent partition are shown under the default mount point, `{per
    ** `/etc/machine-id` is kept in `{persistent_dir}/common/etc/machine-id` with `EarlyPersistFile=`.
 
 * **Offline updates (systemd)**
-   ** Compatible with https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#ConditionNeedsUpdate=[`ConditionNeedsUpdate=/etc`]. A rotation to a slot built with a newer `SOURCE_DATE_EPOCH` is an update of `/usr`.
+   ** Compatible with https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#ConditionNeedsUpdate=[`ConditionNeedsUpdate=/etc`]. A rotation to a slot with a different image, newer or older, is an update of `/usr`.
 
 
 [WARNING]
@@ -46,18 +46,18 @@ If slot GPT labels can’t be guaranteed, this layout is not suitable for your d
 
 == Slot updates
 
-An update writes a new image to the inactive slot and boots it with tryboot. On the first boot of a slot after its resident image has changed:
+An update writes a new image to the inactive slot and boots it with tryboot. On the first boot of a slot, and on its first boot after its resident image has changed:
 
 * The slot's `/var` is reset from the image. The image's `/var` is shipped in `/usr/share/factory/var` and replaces the slot's `/var` in entirety before it's mounted. This means that state written by the slot's previous image is discarded. Files in `/var/cache`, `/var/log` and `/var/tmp` are not shipped in the image, but their directories are.
 * Locations such as `/home`, the journal, and <<slot-shared>> classified assets, eg via `SharedPath=`, are retained.
-* Units with `ConditionNeedsUpdate=/etc` run if the device has not run this image (or a newer one) before.
+* Units with `ConditionNeedsUpdate=/etc` run if the device last ran a different image, and on the device's first boot.
 * Units with `ConditionNeedsUpdate=/var` run (because the slot's `/var` has changed).
 
 `/var/.updated`, written by `systemd-update-done`, records the image the slot's `/var` was last reset for, so later boots do not reset it again. The other slot's `/var` is never touched, so returning to that slot returns to its own state.
 
 [IMPORTANT]
 ====
-A slot's image is regarded as updated when it was built with a newer `SOURCE_DATE_EPOCH` than the image its `/var` was last reset for. An image with an older `SOURCE_DATE_EPOCH` than the previous resident slot image is not detected, the slot's `/var` is not reset, and units using `ConditionNeedsUpdate=` on `/var` or `/etc` will not run.
+Images are told apart by their `SOURCE_DATE_EPOCH`. Two images built with the same `SOURCE_DATE_EPOCH` are regarded as the same image.
 ====
 
 === Application data
@@ -68,7 +68,7 @@ A slot's image is regarded as updated when it was built with a newer `SOURCE_DAT
 
 === Verifying a slot update
 
-These commands show which slot is running, whether the update units ran on this boot, and the state of the persistent partition. The update units run on the first boot of a slot after an update, and not on later boots.
+These commands show which slot is running, whether the update units ran on this boot, and the state of the persistent partition. The update units run on the first boot of a slot and on its first boot after an update, and not on later boots.
 
 [source,sh,subs="attributes+"]
 ----
