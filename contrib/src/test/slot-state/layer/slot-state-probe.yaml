@@ -1,0 +1,12 @@
+# METABEGIN
+# X-Env-Layer-Name: slot-state-probe
+# X-Env-Layer-Category: test
+# X-Env-Layer-Desc: Logs each run of units with ConditionNeedsUpdate= on /etc
+#  and /var, and installs slot-state-check.
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Requires: rpi-connect-lite,rpi-connect-ota,slot-state
+# METAEND
+---
+mmdebstrap:
+  customize-hooks:
+    - $BDEBSTRAP_HOOKS/enable-units "$1" slot-state-probe-etc slot-state-probe-var

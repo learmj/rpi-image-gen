@@ -1,0 +1,20 @@
+#!/bin/sh
+# Show the running image, whether the update units ran on this boot, the
+# update stamps and the marker, then mark each slot's /var. The marker is gone
+# if this slot's /var was reset since the last check. See
+# contrib/src/test/slot-state/README.md.
+
+. /etc/os-release
+echo "image=${IMAGE_VERSION} sde=${IG_SOURCE_DATE_EPOCH} var=$(findmnt -no SOURCE /var)"
+systemctl show -p Id -p ConditionResult slot-state-probe-etc slot-state-probe-var \
+   slot-var-reset systemd-update-done
+stat -c '%Y %n' /usr /etc/.updated /persistent/common/etc/.updated /var/.updated
+if [ -e /var/lib/slot-state-marker ]; then
+   echo "marker: kept"
+else
+   echo "marker: gone"
+fi
+
+for var in /persistent/slots/*/var; do
+   touch "${var}/lib/slot-state-marker"
+done

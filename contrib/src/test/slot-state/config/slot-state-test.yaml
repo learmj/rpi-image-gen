@@ -1,0 +1,14 @@
+include:
+  file: trixie-minbase-ab.yaml
+
+device:
+  hostname: slot-state-test
+
+artefact:
+  version: 1.0.0
+
+image:
+  name: slot-state-test
+
+layer:
+  test: slot-state-probe

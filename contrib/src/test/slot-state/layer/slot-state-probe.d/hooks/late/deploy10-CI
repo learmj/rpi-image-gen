@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -u
+
+manifest="${1}/deployed.json"
+[[ -f "$manifest" ]] || exit 0
+
+ls -l "$1"
+cat "$manifest"

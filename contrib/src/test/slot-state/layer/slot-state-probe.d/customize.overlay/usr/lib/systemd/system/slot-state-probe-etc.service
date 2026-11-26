@@ -1,0 +1,13 @@
+[Unit]
+Description=Probe ConditionNeedsUpdate=/etc
+DefaultDependencies=no
+ConditionNeedsUpdate=/etc
+After=local-fs.target
+Before=systemd-update-done.service sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/grep -E "^(IMAGE_VERSION|IG_SOURCE_DATE_EPOCH)=" /etc/os-release
+
+[Install]
+WantedBy=sysinit.target
